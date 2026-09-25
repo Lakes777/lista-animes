@@ -75,8 +75,9 @@ async function carregarEstatisticas() {
 // ---------- Minha lista ----------
 
 function textoEpisodios(anime) {
-  const total = anime.total_episodios ?? "?";
-  return `${anime.episodios_vistos} / ${total} episódios`;
+  const numero = (n) => n.toLocaleString("pt-BR"); // 1087 vira "1.087"
+  const total = anime.total_episodios === null ? "?" : numero(anime.total_episodios);
+  return `${numero(anime.episodios_vistos)} / ${total} episódios`;
 }
 
 function preencherCapa(img, anime) {
