@@ -126,3 +126,14 @@ def test_rotas_aparecem_na_documentacao(cliente):
 
     assert set(caminhos["/animes"]) == {"get", "post"}
     assert set(caminhos["/animes/{anime_id}"]) == {"get", "patch", "delete"}
+
+
+def test_exemplo_da_documentacao_e_um_anime_valido(cliente):
+    # O exemplo do "Try it out" precisa funcionar se a pessoa só clicar em Execute.
+    esquemas = cliente.get("/openapi.json").json()["components"]["schemas"]
+    [exemplo] = esquemas["AnimeNovo"]["examples"]
+
+    resposta = cliente.post("/animes", json=exemplo)
+
+    assert resposta.status_code == 201
+    assert resposta.json()["titulo"] == "Sousou no Frieren"

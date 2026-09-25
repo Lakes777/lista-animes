@@ -39,3 +39,15 @@ def test_status_aceita_texto_e_recusa_valor_desconhecido():
     assert AnimeNovo(titulo="A", status="concluido").status is Status.CONCLUIDO
     with pytest.raises(ValidationError):
         AnimeNovo(titulo="A", status="vendo_talvez")
+
+
+def test_imagem_url_aceita_link_web():
+    url = "https://cdn.myanimelist.net/images/anime/1015/138006.jpg"
+
+    assert AnimeNovo(titulo="Frieren", imagem_url=url).imagem_url == url
+
+
+@pytest.mark.parametrize("url", ["string", "cdn.myanimelist.net/a.jpg", "javascript:alert(1)", "https://"])
+def test_imagem_url_recusa_o_que_nao_e_link_web(url):
+    with pytest.raises(ValidationError):
+        AnimeNovo(titulo="Frieren", imagem_url=url)

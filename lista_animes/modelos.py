@@ -9,6 +9,9 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+# Só aceita links web (a capa do anime vem da Jikan, ex.: https://cdn.myanimelist.net/...).
+PADRAO_URL = r"^https?://\S+$"
+
 
 class Status(str, Enum):
     QUERO_VER = "quero_ver"
@@ -20,12 +23,28 @@ class Status(str, Enum):
 class AnimeNovo(BaseModel):
     """Dados para adicionar um anime à lista."""
 
-    model_config = ConfigDict(str_strip_whitespace=True)
+    # O exemplo aparece já preenchido no "Try it out" da página /docs.
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "titulo": "Sousou no Frieren",
+                    "mal_id": 52991,
+                    "total_episodios": 28,
+                    "imagem_url": "https://cdn.myanimelist.net/images/anime/1015/138006.jpg",
+                    "status": "assistindo",
+                    "episodios_vistos": 12,
+                    "nota": 10,
+                }
+            ]
+        },
+    )
 
     titulo: str = Field(min_length=1, max_length=200)
     mal_id: int | None = Field(default=None, gt=0, description="ID do anime no MyAnimeList")
     total_episodios: int | None = Field(default=None, ge=1)
-    imagem_url: str | None = None
+    imagem_url: str | None = Field(default=None, pattern=PADRAO_URL)
     status: Status = Status.QUERO_VER
     episodios_vistos: int = Field(default=0, ge=0)
     nota: int | None = Field(default=None, ge=1, le=10, description="De 1 a 10, como no MyAnimeList")
@@ -43,11 +62,14 @@ class AnimeNovo(BaseModel):
 class AnimeAtualizacao(BaseModel):
     """Campos que podem mudar depois. Só os que forem enviados são alterados."""
 
-    model_config = ConfigDict(str_strip_whitespace=True)
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        json_schema_extra={"examples": [{"status": "concluido", "episodios_vistos": 28, "nota": 10}]},
+    )
 
     titulo: str | None = Field(default=None, min_length=1, max_length=200)
     total_episodios: int | None = Field(default=None, ge=1)
-    imagem_url: str | None = None
+    imagem_url: str | None = Field(default=None, pattern=PADRAO_URL)
     status: Status | None = None
     episodios_vistos: int | None = Field(default=None, ge=0)
     nota: int | None = Field(default=None, ge=1, le=10)
