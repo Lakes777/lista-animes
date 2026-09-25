@@ -3,11 +3,14 @@
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from lista_animes.banco import Banco
 from lista_animes.catalogo import Catalogo
 from lista_animes.rotas import roteador, roteador_catalogo
+
+PASTA_STATIC = Path(__file__).parent / "static"
 
 
 def criar_app(caminho_banco: Path | str, catalogo: Catalogo | None = None) -> FastAPI:
@@ -22,10 +25,12 @@ def criar_app(caminho_banco: Path | str, catalogo: Catalogo | None = None) -> Fa
     app.include_router(roteador)
     app.include_router(roteador_catalogo)
 
+    # O front (HTML, CSS e JS) é servido pela própria API: um só servidor para tudo.
+    app.mount("/static", StaticFiles(directory=PASTA_STATIC), name="static")
+
     @app.get("/", include_in_schema=False)
-    def inicio() -> RedirectResponse:
-        # Por enquanto a página inicial leva à documentação; depois vira o front.
-        return RedirectResponse("/docs")
+    def inicio() -> FileResponse:
+        return FileResponse(PASTA_STATIC / "index.html")
 
     @app.get("/saude", tags=["sistema"])
     def saude() -> dict[str, str]:

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lista de Animes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/estilo.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="topo">
+    <div class="container topo__conteudo">
+      <h1 class="topo__titulo">📺 Lista de Animes</h1>
+      <a class="topo__link" href="/docs">Documentação da API</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Estatísticas: preenchidas pelo app.js com GET /animes/estatisticas -->
+    <section class="estatisticas" id="estatisticas" aria-label="Estatísticas"></section>
+
+    <section class="bloco">
+      <h2 class="bloco__titulo">Adicionar do MyAnimeList</h2>
+      <form class="busca" id="form-catalogo">
+        <input class="campo" id="termo-catalogo" type="search" minlength="2" maxlength="100"
+               placeholder="Nome do anime, ex.: frieren" required>
+        <button class="botao" type="submit">Buscar</button>
+      </form>
+      <p class="aviso" id="aviso-catalogo" hidden></p>
+      <div class="grade" id="resultados-catalogo"></div>
+    </section>
+
+    <section class="bloco">
+      <h2 class="bloco__titulo">Minha lista</h2>
+      <div class="filtros">
+        <div class="abas" id="abas" role="tablist">
+          <button class="aba aba--ativa" data-status="" role="tab">Todos</button>
+          <button class="aba" data-status="assistindo" role="tab">Assistindo</button>
+          <button class="aba" data-status="quero_ver" role="tab">Quero ver</button>
+          <button class="aba" data-status="concluido" role="tab">Concluídos</button>
+          <button class="aba" data-status="abandonado" role="tab">Abandonados</button>
+        </div>
+        <input class="campo campo--pequeno" id="filtro-titulo" type="search"
+               placeholder="Filtrar por título" maxlength="100">
+      </div>
+      <p class="aviso" id="aviso-lista" hidden></p>
+      <div class="grade" id="lista"></div>
+    </section>
+  </main>
+
+  <!-- Moldes dos cartões: o app.js copia e preenche com textContent (nunca innerHTML) -->
+  <template id="molde-catalogo">
+    <article class="cartao">
+      <img class="cartao__capa" alt="" loading="lazy">
+      <div class="cartao__corpo">
+        <h3 class="cartao__titulo"></h3>
+        <p class="cartao__info"></p>
+        <p class="cartao__generos"></p>
+        <button class="botao botao--pequeno" type="button">+ Adicionar</button>
+      </div>
+    </article>
+  </template>
+
+  <template id="molde-anime">
+    <article class="cartao">
+      <img class="cartao__capa" alt="" loading="lazy">
+      <div class="cartao__corpo">
+        <h3 class="cartao__titulo"></h3>
+        <label class="rotulo">Status
+          <select class="campo campo--pequeno" data-campo="status">
+            <option value="quero_ver">Quero ver</option>
+            <option value="assistindo">Assistindo</option>
+            <option value="concluido">Concluído</option>
+            <option value="abandonado">Abandonado</option>
+          </select>
+        </label>
+        <div class="episodios">
+          <span class="episodios__texto"></span>
+          <button class="botao botao--pequeno botao--fantasma" type="button" data-acao="mais1">+1 ep.</button>
+        </div>
+        <div class="progresso"><div class="progresso__barra"></div></div>
+        <label class="rotulo">Nota
+          <select class="campo campo--pequeno" data-campo="nota">
+            <option value="">—</option>
+          </select>
+        </label>
+        <button class="botao botao--pequeno botao--perigo" type="button" data-acao="remover">Remover</button>
+      </div>
+    </article>
+  </template>
+
+  <div class="mensagem" id="mensagem" role="status" hidden></div>
+</body>
+</html>
