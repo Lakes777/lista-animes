@@ -216,6 +216,24 @@ function marcarAdicionadosNoCatalogo() {
   }
 }
 
+// Aceita o ID ("52991") ou o link da página do anime no MyAnimeList
+// ("https://myanimelist.net/anime/52991/Sousou_no_Frieren"). Devolve null se for um nome.
+function extrairMalId(texto) {
+  const encontrado = texto.match(/^(\d+)$/) || texto.match(/myanimelist\.net\/anime\/(\d+)/);
+  return encontrado ? Number(encontrado[1]) : null;
+}
+
+async function procurar(termo) {
+  const malId = extrairMalId(termo);
+  if (malId !== null) {
+    // A busca por ID usa a cópia guardada pela Jikan: costuma funcionar
+    // mesmo quando a busca por nome falha com o MyAnimeList fora do ar.
+    return [await api(`/catalogo/${malId}`)];
+  }
+  if (termo.length < 2) throw new Error("Digite pelo menos 2 letras do nome.");
+  return api(`/catalogo/busca?${new URLSearchParams({ q: termo })}`);
+}
+
 async function buscarNoCatalogo(evento) {
   evento.preventDefault();
   const termo = $("#termo-catalogo").value.trim();
@@ -225,13 +243,18 @@ async function buscarNoCatalogo(evento) {
   botao.disabled = true;
   mostrarAviso(aviso, "Buscando no MyAnimeList...");
   try {
-    const animes = await api(`/catalogo/busca?${new URLSearchParams({ q: termo })}`);
+    const animes = await procurar(termo);
     $("#resultados-catalogo").replaceChildren(...animes.map(criarCartaoCatalogo));
     marcarAdicionadosNoCatalogo();
     mostrarAviso(aviso, animes.length ? "" : `Nenhum anime encontrado para "${termo}".`);
   } catch (erro) {
     $("#resultados-catalogo").replaceChildren();
-    mostrarAviso(aviso, `⚠️ ${erro.message}`);
+    let texto = `⚠️ ${erro.message}`;
+    if (extrairMalId(termo) === null && erro.message.includes("fora do ar")) {
+      texto += " Dica: cole o link do anime no MyAnimeList (ex.: myanimelist.net/anime/52991)."
+        + " A busca por ID costuma funcionar mesmo assim.";
+    }
+    mostrarAviso(aviso, texto);
   } finally {
     botao.disabled = false;
   }
