@@ -1,18 +1,42 @@
-"""Rotas de /animes: criar, listar (com filtros), ver, editar e apagar, e estatísticas."""
+"""Rotas da API.
+
+/animes: sua lista (criar, listar com filtros, ver, editar, apagar e estatísticas).
+/catalogo: busca no catálogo da Jikan (MyAnimeList).
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import ValidationError
 
 from lista_animes.banco import AnimeRepetido, Banco
-from lista_animes.modelos import Anime, AnimeAtualizacao, AnimeNovo, Estatisticas, Status
+from lista_animes.catalogo import Catalogo, CatalogoIndisponivel
+from lista_animes.modelos import (
+    Anime,
+    AnimeAtualizacao,
+    AnimeCatalogo,
+    AnimeNovo,
+    Estatisticas,
+    Status,
+)
 
 roteador = APIRouter(prefix="/animes", tags=["animes"])
+roteador_catalogo = APIRouter(prefix="/catalogo", tags=["catálogo"])
+
+ERRO_CATALOGO = {503: {"description": "A Jikan (MyAnimeList) está fora do ar"}}
 
 
 def pegar_banco(request: Request) -> Banco:
     # O banco é guardado no app ao criá-lo (app.state.banco). O Depends entrega
     # ele para cada rota, e os testes podem trocar por um banco temporário.
     return request.app.state.banco
+
+
+def pegar_catalogo(request: Request) -> Catalogo:
+    return request.app.state.catalogo
+
+
+def catalogo_fora_do_ar(erro: CatalogoIndisponivel) -> HTTPException:
+    # 503 = "serviço indisponível": o problema não é o pedido, é a Jikan.
+    return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(erro))
 
 
 def nao_encontrado(anime_id: int) -> HTTPException:
@@ -40,6 +64,34 @@ def listar(
 ) -> list[Anime]:
     """Lista os animes, na ordem em que foram adicionados. Os filtros são opcionais."""
     return banco.listar(status=status_anime, busca=busca)
+
+
+@roteador.post(
+    "/do-catalogo/{mal_id}",
+    status_code=status.HTTP_201_CREATED,
+    responses={404: {"description": "Anime não existe no MyAnimeList"}, **ERRO_CATALOGO},
+)
+def adicionar_do_catalogo(
+    mal_id: int,
+    status_anime: Status = Query(default=Status.QUERO_VER, alias="status"),
+    banco: Banco = Depends(pegar_banco),
+    catalogo: Catalogo = Depends(pegar_catalogo),
+) -> Anime:
+    """Adiciona um anime pelo ID do MyAnimeList: título, episódios e capa vêm da Jikan."""
+    try:
+        encontrado = catalogo.detalhes(mal_id)
+    except CatalogoIndisponivel as erro:
+        raise catalogo_fora_do_ar(erro) from erro
+    if encontrado is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Não existe anime {mal_id} no MyAnimeList")
+    novo = AnimeNovo(
+        titulo=encontrado.titulo,
+        mal_id=encontrado.mal_id,
+        total_episodios=encontrado.total_episodios or None,  # a Jikan pode mandar 0
+        imagem_url=encontrado.imagem_url,
+        status=status_anime,
+    )
+    return adicionar(novo, banco)
 
 
 # Esta rota precisa vir antes de /{anime_id}: as rotas são testadas na ordem,
@@ -85,3 +137,30 @@ def apagar(anime_id: int, banco: Banco = Depends(pegar_banco)) -> Response:
     if not banco.remover(anime_id):
         raise nao_encontrado(anime_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@roteador_catalogo.get("/busca", responses=ERRO_CATALOGO)
+def buscar_no_catalogo(
+    q: str = Query(min_length=2, max_length=100, description="Nome do anime, ex.: frieren"),
+    limite: int = Query(default=10, ge=1, le=25),
+    catalogo: Catalogo = Depends(pegar_catalogo),
+) -> list[AnimeCatalogo]:
+    """Procura animes no MyAnimeList pelo nome."""
+    try:
+        return catalogo.buscar(q.strip(), limite)
+    except CatalogoIndisponivel as erro:
+        raise catalogo_fora_do_ar(erro) from erro
+
+
+@roteador_catalogo.get(
+    "/{mal_id}", responses={404: {"description": "Anime não existe no MyAnimeList"}, **ERRO_CATALOGO}
+)
+def ver_no_catalogo(mal_id: int, catalogo: Catalogo = Depends(pegar_catalogo)) -> AnimeCatalogo:
+    """Mostra os detalhes de um anime do MyAnimeList (sinopse, gêneros, nota...)."""
+    try:
+        anime = catalogo.detalhes(mal_id)
+    except CatalogoIndisponivel as erro:
+        raise catalogo_fora_do_ar(erro) from erro
+    if anime is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Não existe anime {mal_id} no MyAnimeList")
+    return anime

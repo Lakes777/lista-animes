@@ -89,3 +89,18 @@ class Estatisticas(BaseModel):
     por_status: dict[Status, int]
     episodios_assistidos: int
     nota_media: float | None = Field(description="Média das notas dadas, com 1 casa decimal")
+
+
+class AnimeCatalogo(BaseModel):
+    """Um anime do catálogo da Jikan (MyAnimeList), ainda fora da sua lista."""
+
+    mal_id: int
+    titulo: str
+    titulo_ingles: str | None = None
+    total_episodios: int | None = None
+    imagem_url: str | None = None
+    ano: int | None = None
+    nota_mal: float | None = Field(default=None, description="Nota média no MyAnimeList")
+    tipo: str | None = Field(default=None, description="TV, Movie, OVA...")
+    sinopse: str | None = None
+    generos: list[str] = []

@@ -1,3 +1,7 @@
+import httpx
+
+from tests.conftest import frieren_da_jikan
+
 FRIEREN = {"titulo": "Sousou no Frieren", "mal_id": 52991, "total_episodios": 28}
 
 
@@ -170,3 +174,96 @@ def test_estatisticas(cliente):
         "episodios_assistidos": 33,
         "nota_media": 10.0,
     }
+
+
+def test_buscar_no_catalogo(cliente, jikan):
+    jikan.responder(
+        "/anime", httpx.Response(200, json={"data": [frieren_da_jikan()["data"]]})
+    )
+
+    resposta = cliente.get("/catalogo/busca", params={"q": "frieren"})
+
+    assert resposta.status_code == 200
+    [anime] = resposta.json()
+    assert anime["mal_id"] == 52991
+    assert anime["titulo_ingles"] == "Frieren: Beyond Journey's End"
+
+
+def test_busca_no_catalogo_precisa_de_pelo_menos_2_letras(cliente, jikan):
+    assert cliente.get("/catalogo/busca", params={"q": "a"}).status_code == 422
+    assert jikan.pedidos == []  # nem chegou a consultar a Jikan
+
+
+def test_catalogo_fora_do_ar_devolve_503_com_mensagem(cliente, jikan):
+    jikan.responder("/anime", httpx.Response(504))
+
+    resposta = cliente.get("/catalogo/busca", params={"q": "frieren"})
+
+    assert resposta.status_code == 503
+    assert "fora do ar" in resposta.json()["detail"]
+
+
+def test_ver_no_catalogo(cliente, jikan):
+    jikan.responder("/anime/52991", httpx.Response(200, json=frieren_da_jikan()))
+
+    resposta = cliente.get("/catalogo/52991")
+
+    assert resposta.status_code == 200
+    assert "Fantasy" in resposta.json()["generos"]
+
+
+def test_ver_no_catalogo_anime_que_nao_existe_devolve_404(cliente, jikan):
+    jikan.responder("/anime/999999", httpx.Response(404))
+
+    assert cliente.get("/catalogo/999999").status_code == 404
+
+
+def test_adicionar_do_catalogo_preenche_dados_da_jikan(cliente, jikan):
+    jikan.responder("/anime/52991", httpx.Response(200, json=frieren_da_jikan()))
+
+    resposta = cliente.post("/animes/do-catalogo/52991", params={"status": "assistindo"})
+
+    assert resposta.status_code == 201
+    anime = resposta.json()
+    assert anime["titulo"] == "Sousou no Frieren"
+    assert anime["mal_id"] == 52991
+    assert anime["total_episodios"] == 28
+    assert anime["imagem_url"].startswith("https://cdn.myanimelist.net/")
+    assert anime["status"] == "assistindo"
+    assert cliente.get("/animes").json() == [anime]
+
+
+def test_adicionar_do_catalogo_sem_status_fica_quero_ver(cliente, jikan):
+    jikan.responder("/anime/52991", httpx.Response(200, json=frieren_da_jikan()))
+
+    assert cliente.post("/animes/do-catalogo/52991").json()["status"] == "quero_ver"
+
+
+def test_adicionar_do_catalogo_repetido_devolve_409(cliente, jikan):
+    jikan.responder("/anime/52991", httpx.Response(200, json=frieren_da_jikan()))
+    cliente.post("/animes/do-catalogo/52991")
+
+    assert cliente.post("/animes/do-catalogo/52991").status_code == 409
+
+
+def test_adicionar_do_catalogo_anime_inexistente_devolve_404(cliente, jikan):
+    jikan.responder("/anime/999999", httpx.Response(404))
+
+    assert cliente.post("/animes/do-catalogo/999999").status_code == 404
+    assert cliente.get("/animes").json() == []
+
+
+def test_adicionar_do_catalogo_com_jikan_fora_do_ar_devolve_503(cliente, jikan):
+    jikan.responder("/anime/52991", httpx.Response(504))
+
+    assert cliente.post("/animes/do-catalogo/52991").status_code == 503
+    assert cliente.get("/animes").json() == []
+
+
+def test_adicionar_do_catalogo_anime_com_zero_episodios(cliente, jikan):
+    # Anime ainda sem episódios anunciados: a Jikan pode mandar 0 ou null.
+    jikan.responder(
+        "/anime/60000", httpx.Response(200, json={"data": {"mal_id": 60000, "title": "Novo", "episodes": 0}})
+    )
+
+    assert cliente.post("/animes/do-catalogo/60000").json()["total_episodios"] is None
