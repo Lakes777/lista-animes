@@ -73,13 +73,13 @@ LISTA_ANIMES_BANCO=outra-lista.db python -m lista_animes
 
 ## Publicação online
 
-O arquivo [](render.yaml) descreve o servidor para o [Render](https://render.com), e cada push na  publica a versão nova. Lá a API roda em **modo demonstração** ():
+O arquivo [`render.yaml`](render.yaml) descreve o servidor para o [Render](https://render.com), e cada push na `main` publica a versão nova. Lá a API roda em **modo demonstração** (`LISTA_ANIMES_DEMO=1`):
 
-- abre com uma lista de exemplo () e um aviso no topo da página;
+- abre com uma lista de exemplo (`lista_animes/exemplos.json`) e um aviso no topo da página;
 - aceita no máximo 100 animes, para ninguém encher o servidor (o limite é conferido antes de consultar a Jikan);
 - o disco do plano gratuito é apagado quando o servidor reinicia, e a lista volta ao exemplo.
 
-O endereço e a porta vêm das variáveis  e . No PC, o padrão é , que só aceita conexões do próprio computador.
+O endereço e a porta vêm das variáveis `HOST` e `PORT`. No PC, o padrão é `127.0.0.1:8000`, que só aceita conexões do próprio computador.
 
 ## Testes
 
