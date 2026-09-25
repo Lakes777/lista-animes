@@ -119,3 +119,79 @@ def test_tabela_tem_as_colunas_esperadas(tmp_path):
     with sqlite3.connect(tmp_path / "lista.db") as conexao:
         colunas = {linha[1] for linha in conexao.execute("PRAGMA table_info(animes)")}
     assert {"id", "titulo", "mal_id", "status", "episodios_vistos", "nota"} <= colunas
+
+
+@pytest.fixture
+def banco_com_animes(banco):
+    banco.adicionar(frieren(status=Status.CONCLUIDO, episodios_vistos=28, nota=10))
+    banco.adicionar(AnimeNovo(titulo="Cowboy Bebop", mal_id=1, status=Status.ASSISTINDO,
+                              total_episodios=26, episodios_vistos=10))
+    banco.adicionar(AnimeNovo(titulo="Fullmetal Alchemist: Brotherhood", mal_id=5114,
+                              status=Status.CONCLUIDO, total_episodios=64,
+                              episodios_vistos=64, nota=9))
+    banco.adicionar(AnimeNovo(titulo="100% Pascal-sensei", status=Status.QUERO_VER))
+    return banco
+
+
+def titulos(animes):
+    return [a.titulo for a in animes]
+
+
+def test_filtrar_por_status(banco_com_animes):
+    concluidos = banco_com_animes.listar(status=Status.CONCLUIDO)
+
+    assert titulos(concluidos) == ["Sousou no Frieren", "Fullmetal Alchemist: Brotherhood"]
+    assert banco_com_animes.listar(status=Status.ABANDONADO) == []
+
+
+def test_busca_por_parte_do_titulo_ignora_maiusculas(banco_com_animes):
+    assert titulos(banco_com_animes.listar(busca="FRIER")) == ["Sousou no Frieren"]
+    assert titulos(banco_com_animes.listar(busca="  bebop ")) == ["Cowboy Bebop"]
+
+
+def test_busca_vazia_nao_filtra(banco_com_animes):
+    assert len(banco_com_animes.listar(busca="   ")) == 4
+
+
+def test_busca_trata_porcentagem_e_underline_como_texto(banco_com_animes):
+    # Sem escapar, "%" e "_" seriam curingas do LIKE e achariam todos os animes.
+    assert titulos(banco_com_animes.listar(busca="100%")) == ["100% Pascal-sensei"]
+    assert titulos(banco_com_animes.listar(busca="%")) == ["100% Pascal-sensei"]
+    assert banco_com_animes.listar(busca="_") == []
+
+
+def test_filtros_juntos(banco_com_animes):
+    resultado = banco_com_animes.listar(status=Status.CONCLUIDO, busca="alchemist")
+
+    assert titulos(resultado) == ["Fullmetal Alchemist: Brotherhood"]
+
+
+def test_estatisticas_da_lista_vazia(banco):
+    estatisticas = banco.estatisticas()
+
+    assert estatisticas.total == 0
+    assert estatisticas.por_status == {status: 0 for status in Status}
+    assert estatisticas.episodios_assistidos == 0
+    assert estatisticas.nota_media is None
+
+
+def test_estatisticas_somam_e_contam_por_status(banco_com_animes):
+    estatisticas = banco_com_animes.estatisticas()
+
+    assert estatisticas.total == 4
+    assert estatisticas.por_status == {
+        Status.QUERO_VER: 1,
+        Status.ASSISTINDO: 1,
+        Status.CONCLUIDO: 2,
+        Status.ABANDONADO: 0,
+    }
+    assert estatisticas.episodios_assistidos == 28 + 10 + 64
+    assert estatisticas.nota_media == 9.5  # só conta quem tem nota: (10 + 9) / 2
+
+
+def test_nota_media_arredonda_meio_para_cima(banco):
+    # (8 + 8 + 8 + 9) / 4 = 8.25. O round() do Python daria 8.2; aqui fica 8.3.
+    for i, nota in enumerate([8, 8, 8, 9]):
+        banco.adicionar(AnimeNovo(titulo=f"Anime {i}", nota=nota))
+
+    assert banco.estatisticas().nota_media == 8.3

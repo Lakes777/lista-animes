@@ -1,10 +1,10 @@
-"""Rotas de /animes: criar, listar, ver, editar e apagar (CRUD)."""
+"""Rotas de /animes: criar, listar (com filtros), ver, editar e apagar, e estatísticas."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import ValidationError
 
 from lista_animes.banco import AnimeRepetido, Banco
-from lista_animes.modelos import Anime, AnimeAtualizacao, AnimeNovo
+from lista_animes.modelos import Anime, AnimeAtualizacao, AnimeNovo, Estatisticas, Status
 
 roteador = APIRouter(prefix="/animes", tags=["animes"])
 
@@ -29,9 +29,25 @@ def adicionar(novo: AnimeNovo, banco: Banco = Depends(pegar_banco)) -> Anime:
 
 
 @roteador.get("")
-def listar(banco: Banco = Depends(pegar_banco)) -> list[Anime]:
-    """Lista todos os animes, na ordem em que foram adicionados."""
-    return banco.listar()
+def listar(
+    status_anime: Status | None = Query(
+        default=None, alias="status", description="Mostra só os animes com esse status"
+    ),
+    busca: str | None = Query(
+        default=None, max_length=100, description="Parte do título (maiúsculas ou minúsculas)"
+    ),
+    banco: Banco = Depends(pegar_banco),
+) -> list[Anime]:
+    """Lista os animes, na ordem em que foram adicionados. Os filtros são opcionais."""
+    return banco.listar(status=status_anime, busca=busca)
+
+
+# Esta rota precisa vir antes de /{anime_id}: as rotas são testadas na ordem,
+# e "estatisticas" seria lido como um id (e recusado por não ser número).
+@roteador.get("/estatisticas")
+def estatisticas(banco: Banco = Depends(pegar_banco)) -> Estatisticas:
+    """Resumo da lista: quantos animes por status, episódios assistidos e nota média."""
+    return banco.estatisticas()
 
 
 @roteador.get("/{anime_id}", responses={404: {"description": "Anime não encontrado"}})

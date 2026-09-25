@@ -80,3 +80,12 @@ class Anime(AnimeNovo):
 
     id: int
     criado_em: datetime
+
+
+class Estatisticas(BaseModel):
+    """Resumo da lista inteira."""
+
+    total: int
+    por_status: dict[Status, int]
+    episodios_assistidos: int
+    nota_media: float | None = Field(description="Média das notas dadas, com 1 casa decimal")

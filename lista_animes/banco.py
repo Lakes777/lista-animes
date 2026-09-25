@@ -9,9 +9,10 @@ import sqlite3
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from datetime import datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
-from lista_animes.modelos import Anime, AnimeAtualizacao, AnimeNovo
+from lista_animes.modelos import Anime, AnimeAtualizacao, AnimeNovo, Estatisticas, Status
 
 CRIAR_TABELA = """
 CREATE TABLE IF NOT EXISTS animes (
@@ -61,10 +62,43 @@ class Banco:
             raise AnimeRepetido(f"O anime com mal_id {novo.mal_id} já está na lista") from erro
         return Anime(id=cursor.lastrowid, **dados)
 
-    def listar(self) -> list[Anime]:
+    def listar(self, status: Status | None = None, busca: str | None = None) -> list[Anime]:
+        # Monta o WHERE só com os filtros que foram pedidos.
+        condicoes, valores = [], []
+        if status is not None:
+            condicoes.append("status = ?")
+            valores.append(status.value)
+        if busca and busca.strip():
+            # No LIKE, % e _ são curingas. Escapamos para que "100%" busque o texto "100%".
+            termo = busca.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            condicoes.append("titulo LIKE ? ESCAPE '\\'")
+            valores.append(f"%{termo}%")
+        where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
         with self._conectar() as conexao:
-            linhas = conexao.execute("SELECT * FROM animes ORDER BY id").fetchall()
+            linhas = conexao.execute(f"SELECT * FROM animes {where} ORDER BY id", valores).fetchall()
         return [Anime(**linha) for linha in linhas]
+
+    def estatisticas(self) -> Estatisticas:
+        with self._conectar() as conexao:
+            contagem = dict(
+                conexao.execute("SELECT status, COUNT(*) FROM animes GROUP BY status").fetchall()
+            )
+            # COUNT(nota) conta só as linhas que têm nota (ignora NULL).
+            episodios, com_nota, soma_notas = conexao.execute(
+                "SELECT COALESCE(SUM(episodios_vistos), 0), COUNT(nota), COALESCE(SUM(nota), 0) "
+                "FROM animes"
+            ).fetchone()
+        nota_media = None
+        if com_nota:
+            # Decimal com ROUND_HALF_UP: 8.25 vira 8.3, como aprendemos na escola.
+            media = (Decimal(soma_notas) / com_nota).quantize(Decimal("0.1"), ROUND_HALF_UP)
+            nota_media = float(media)
+        return Estatisticas(
+            total=sum(contagem.values()),
+            por_status={s: contagem.get(s.value, 0) for s in Status},
+            episodios_assistidos=episodios,
+            nota_media=nota_media,
+        )
 
     def buscar(self, anime_id: int) -> Anime | None:
         with self._conectar() as conexao:

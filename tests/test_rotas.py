@@ -137,3 +137,36 @@ def test_exemplo_da_documentacao_e_um_anime_valido(cliente):
 
     assert resposta.status_code == 201
     assert resposta.json()["titulo"] == "Sousou no Frieren"
+
+
+def test_listar_filtrando_por_status_e_busca(cliente):
+    adicionar(cliente)
+    adicionar(cliente, titulo="Cowboy Bebop", mal_id=1, status="assistindo")
+    adicionar(cliente, titulo="Cowboy Bebop: O Filme", mal_id=5, status="quero_ver")
+
+    assistindo = cliente.get("/animes", params={"status": "assistindo"}).json()
+    bebop = cliente.get("/animes", params={"busca": "bebop"}).json()
+    ambos = cliente.get("/animes", params={"busca": "bebop", "status": "quero_ver"}).json()
+
+    assert [a["titulo"] for a in assistindo] == ["Cowboy Bebop"]
+    assert [a["titulo"] for a in bebop] == ["Cowboy Bebop", "Cowboy Bebop: O Filme"]
+    assert [a["titulo"] for a in ambos] == ["Cowboy Bebop: O Filme"]
+
+
+def test_listar_com_status_desconhecido_devolve_422(cliente):
+    assert cliente.get("/animes", params={"status": "vendo_talvez"}).status_code == 422
+
+
+def test_estatisticas(cliente):
+    adicionar(cliente, **FRIEREN, status="concluido", episodios_vistos=28, nota=10)
+    adicionar(cliente, titulo="Cowboy Bebop", mal_id=1, status="assistindo", episodios_vistos=5)
+
+    resposta = cliente.get("/animes/estatisticas")
+
+    assert resposta.status_code == 200
+    assert resposta.json() == {
+        "total": 2,
+        "por_status": {"quero_ver": 0, "assistindo": 1, "concluido": 1, "abandonado": 0},
+        "episodios_assistidos": 33,
+        "nota_media": 10.0,
+    }
