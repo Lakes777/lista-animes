@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 
 import pytest
 from pydantic import ValidationError
@@ -195,3 +196,22 @@ def test_nota_media_arredonda_meio_para_cima(banco):
         banco.adicionar(AnimeNovo(titulo=f"Anime {i}", nota=nota))
 
     assert banco.estatisticas().nota_media == 8.3
+
+
+def test_ao_abrir_limpa_imagem_url_invalida_salva_por_versao_antiga(tmp_path):
+    # Simula um banco de antes da validação do link: imagem_url = "string".
+    caminho = tmp_path / "antigo.db"
+    Banco(caminho)
+    with closing(sqlite3.connect(caminho)) as conexao, conexao:
+        conexao.executemany(
+            "INSERT INTO animes (titulo, status, imagem_url, criado_em) VALUES (?, ?, ?, ?)",
+            [
+                ("Antigo", "quero_ver", "string", "2026-09-25T20:59:48+00:00"),
+                ("Bom", "quero_ver", "https://cdn.myanimelist.net/a.jpg", "2026-09-25T21:00:00+00:00"),
+            ],
+        )
+
+    antigo, bom = Banco(caminho).listar()  # antes da migração, isto dava ValidationError
+
+    assert antigo.imagem_url is None
+    assert bom.imagem_url == "https://cdn.myanimelist.net/a.jpg"

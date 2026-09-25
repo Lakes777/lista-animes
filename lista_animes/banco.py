@@ -29,6 +29,15 @@ CREATE TABLE IF NOT EXISTS animes (
 """
 
 
+# Migrações: ajustes nos dados salvos por versões antigas, rodados ao abrir o banco.
+MIGRACOES = [
+    # Antes, imagem_url aceitava qualquer texto; agora só links http(s).
+    # Sem isso, um único item antigo inválido derrubava a listagem inteira.
+    "UPDATE animes SET imagem_url = NULL "
+    "WHERE imagem_url NOT LIKE 'http://_%' AND imagem_url NOT LIKE 'https://_%'",
+]
+
+
 class AnimeRepetido(Exception):
     """O anime (mesmo mal_id) já está na lista."""
 
@@ -38,6 +47,8 @@ class Banco:
         self.caminho = Path(caminho)
         with self._conectar() as conexao:
             conexao.execute(CRIAR_TABELA)
+            for migracao in MIGRACOES:
+                conexao.execute(migracao)
 
     @contextmanager
     def _conectar(self) -> Iterator[sqlite3.Connection]:
