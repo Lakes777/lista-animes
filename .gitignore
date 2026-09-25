@@ -1,0 +1,10 @@
+# Ambiente virtual
+.venv/
+
+# Banco de dados local (sua lista pessoal de animes)
+*.db
+
+# Cache do Python
+__pycache__/
+*.pyc
+.pytest_cache/
