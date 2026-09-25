@@ -4,6 +4,10 @@
 
 API REST em Python com **FastAPI** para organizar sua lista de animes: o que você quer ver, o que está vendo e o que já viu. Os dados dos animes (título, episódios e capa) vêm da [Jikan](https://jikan.moe), uma API gratuita com o catálogo do **MyAnimeList**. A própria API também entrega um front em HTML, CSS e JavaScript puros.
 
+### 🌐 [Ver ao vivo](https://lista-animes-b8ql.onrender.com)
+
+> Versão de demonstração no plano gratuito do Render: qualquer pessoa pode testar, e a lista volta ao exemplo quando o servidor reinicia. Depois de 15 minutos sem visitas o servidor dorme, e a primeira visita pode levar cerca de 1 minuto para carregar.
+
 <p align="center">
   <img src="docs/tela.jpg" alt="Tela da Lista de Animes com estatísticas, busca no MyAnimeList e cartões com capa, status, episódios e nota" width="760">
 </p>
@@ -67,6 +71,16 @@ LISTA_ANIMES_BANCO=outra-lista.db python -m lista_animes
 
 > 💡 A busca **por nome** da Jikan consulta o MyAnimeList na hora e às vezes fica fora do ar. A busca **por ID ou link** (ex.: `myanimelist.net/anime/52991`) usa uma cópia guardada pela Jikan e costuma funcionar mesmo assim.
 
+## Publicação online
+
+O arquivo [](render.yaml) descreve o servidor para o [Render](https://render.com), e cada push na  publica a versão nova. Lá a API roda em **modo demonstração** ():
+
+- abre com uma lista de exemplo () e um aviso no topo da página;
+- aceita no máximo 100 animes, para ninguém encher o servidor (o limite é conferido antes de consultar a Jikan);
+- o disco do plano gratuito é apagado quando o servidor reinicia, e a lista volta ao exemplo.
+
+O endereço e a porta vêm das variáveis  e . No PC, o padrão é , que só aceita conexões do próprio computador.
+
 ## Testes
 
 ```bash
@@ -74,7 +88,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-São 91 testes cobrindo as validações, o banco de dados, as rotas, o catálogo e os arquivos do front. **Nenhum teste acessa a internet nem a sua lista real:**
+São 98 testes cobrindo as validações, o banco de dados, as rotas, o catálogo e os arquivos do front. **Nenhum teste acessa a internet nem a sua lista real:**
 
 - Cada teste usa um banco novo numa pasta temporária (`tmp_path`).
 - A Jikan é substituída por uma imitação (`httpx.MockTransport`) que responde com uma resposta real gravada em `tests/dados/`. Se o código tentar uma consulta que o teste não previu, o teste falha.
@@ -92,9 +106,11 @@ lista-animes/
 │   ├── modelos.py     # formato e validação dos dados (Pydantic)
 │   ├── banco.py       # SQLite com SQL escrito à mão
 │   ├── catalogo.py    # consultas à Jikan e tratamento de falhas
+│   ├── exemplos.json  # lista de exemplo do modo demonstração
 │   └── static/        # front: index.html, estilo.css e app.js
 ├── tests/             # testes com pytest (+ resposta real da Jikan em tests/dados)
-└── docs/              # imagens do README
+├── docs/              # imagens do README
+└── render.yaml        # configuração da publicação no Render
 ```
 
 ## Decisões técnicas
@@ -111,7 +127,7 @@ lista-animes/
 
 ## Próximos passos
 
-- [ ] Publicar online, com um link para abrir de qualquer lugar
+- [x] Publicar online, com um link para abrir de qualquer lugar
 - [ ] Contas de usuário, para cada pessoa ter a sua lista
 - [ ] Ordenar a lista (por nota, título ou data)
 - [ ] Guardar a sinopse e os gêneros e mostrar os detalhes ao clicar no cartão
