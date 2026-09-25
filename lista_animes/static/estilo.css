@@ -164,7 +164,10 @@ body {
   background: var(--surface-hover);
 }
 
-.aba--ativa {
+/* O :hover também aqui: sem isso, o fundo escuro do .aba:hover vencia
+   e o texto (escuro) da aba ativa sumia com o mouse em cima dela. */
+.aba--ativa,
+.aba--ativa:hover {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--bg);
