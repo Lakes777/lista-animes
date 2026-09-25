@@ -284,10 +284,16 @@ function filtrarPorTitulo(evento) {
 
 // ---------- Início ----------
 
+async function mostrarAvisoDemo() {
+  const { demo } = await api("/info");
+  $("#aviso-demo").hidden = !demo;
+}
+
 $("#form-catalogo").addEventListener("submit", buscarNoCatalogo);
 $("#abas").addEventListener("click", escolherAba);
 $("#filtro-titulo").addEventListener("input", filtrarPorTitulo);
 
+mostrarAvisoDemo().catch(() => {});
 atualizarTudo().catch(() =>
   mostrarAviso($("#aviso-lista"), "⚠️ Não consegui falar com a API. Ela está rodando?"),
 );

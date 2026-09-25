@@ -34,6 +34,19 @@ def pegar_catalogo(request: Request) -> Catalogo:
     return request.app.state.catalogo
 
 
+def pegar_limite(request: Request) -> int | None:
+    # Só existe na demonstração online (None = sem limite).
+    return request.app.state.limite_animes
+
+
+def conferir_limite(banco: Banco, limite: int | None) -> None:
+    if limite is not None and len(banco.listar()) >= limite:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"A demonstração aceita até {limite} animes. Remova algum para adicionar outro.",
+        )
+
+
 def catalogo_fora_do_ar(erro: CatalogoIndisponivel) -> HTTPException:
     # 503 = "serviço indisponível": o problema não é o pedido, é a Jikan.
     return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(erro))
@@ -43,9 +56,16 @@ def nao_encontrado(anime_id: int) -> HTTPException:
     return HTTPException(status.HTTP_404_NOT_FOUND, f"Anime {anime_id} não está na lista")
 
 
-@roteador.post("", status_code=status.HTTP_201_CREATED)
-def adicionar(novo: AnimeNovo, banco: Banco = Depends(pegar_banco)) -> Anime:
+@roteador.post(
+    "", status_code=status.HTTP_201_CREATED, responses={403: {"description": "Limite atingido"}}
+)
+def adicionar(
+    novo: AnimeNovo,
+    banco: Banco = Depends(pegar_banco),
+    limite: int | None = Depends(pegar_limite),
+) -> Anime:
     """Adiciona um anime à lista."""
+    conferir_limite(banco, limite)
     try:
         return banco.adicionar(novo)
     except AnimeRepetido as erro:
@@ -69,15 +89,21 @@ def listar(
 @roteador.post(
     "/do-catalogo/{mal_id}",
     status_code=status.HTTP_201_CREATED,
-    responses={404: {"description": "Anime não existe no MyAnimeList"}, **ERRO_CATALOGO},
+    responses={
+        403: {"description": "Limite atingido"},
+        404: {"description": "Anime não existe no MyAnimeList"},
+        **ERRO_CATALOGO,
+    },
 )
 def adicionar_do_catalogo(
     mal_id: int,
     status_anime: Status = Query(default=Status.QUERO_VER, alias="status"),
     banco: Banco = Depends(pegar_banco),
     catalogo: Catalogo = Depends(pegar_catalogo),
+    limite: int | None = Depends(pegar_limite),
 ) -> Anime:
     """Adiciona um anime pelo ID do MyAnimeList: título, episódios e capa vêm da Jikan."""
+    conferir_limite(banco, limite)  # antes de consultar a Jikan, para não gastar uma consulta
     try:
         encontrado = catalogo.detalhes(mal_id)
     except CatalogoIndisponivel as erro:
@@ -91,7 +117,7 @@ def adicionar_do_catalogo(
         imagem_url=encontrado.imagem_url,
         status=status_anime,
     )
-    return adicionar(novo, banco)
+    return adicionar(novo, banco, limite)
 
 
 # Esta rota precisa vir antes de /{anime_id}: as rotas são testadas na ordem,

@@ -1,0 +1,24 @@
+# Configuração do Render (https://render.com), lida por "New > Blueprint".
+# Publica a API em modo demonstração, no plano gratuito.
+services:
+  - type: web
+    name: lista-animes
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m lista_animes
+    # O Render só manda visitantes para a API depois que /saude responder.
+    healthCheckPath: /saude
+    autoDeploy: true # cada push na main publica a versão nova
+    envVars:
+      # Aceita conexões de fora (o padrão, 127.0.0.1, só aceita do próprio computador).
+      # A porta vem da variável PORT, que o próprio Render define.
+      - key: HOST
+        value: 0.0.0.0
+      # Lista de exemplo + limite de animes. O disco do plano grátis é apagado
+      # quando o servidor reinicia, e aí a lista volta ao exemplo.
+      - key: LISTA_ANIMES_DEMO
+        value: "1"
+      # Mostra os print() nos logs do Render na hora, sem esperar o buffer encher.
+      - key: PYTHONUNBUFFERED
+        value: "1"

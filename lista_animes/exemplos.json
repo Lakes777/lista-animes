@@ -1,0 +1,74 @@
+[
+  {
+    "titulo": "Sousou no Frieren",
+    "mal_id": 52991,
+    "total_episodios": 28,
+    "imagem_url": "https://cdn.myanimelist.net/images/anime/1015/138006.jpg",
+    "status": "assistindo",
+    "episodios_vistos": 19,
+    "nota": 10
+  },
+  {
+    "titulo": "Fullmetal Alchemist: Brotherhood",
+    "mal_id": 5114,
+    "total_episodios": 64,
+    "imagem_url": "https://cdn.myanimelist.net/images/anime/1208/94745.jpg",
+    "status": "concluido",
+    "episodios_vistos": 64,
+    "nota": 10
+  },
+  {
+    "titulo": "Steins;Gate",
+    "mal_id": 9253,
+    "total_episodios": 24,
+    "imagem_url": "https://cdn.myanimelist.net/images/anime/1935/127974.jpg",
+    "status": "concluido",
+    "episodios_vistos": 24,
+    "nota": 9
+  },
+  {
+    "titulo": "Cowboy Bebop",
+    "mal_id": 1,
+    "total_episodios": 26,
+    "imagem_url": "https://cdn.myanimelist.net/images/anime/4/19644.jpg",
+    "status": "assistindo",
+    "episodios_vistos": 9,
+    "nota": null
+  },
+  {
+    "titulo": "Shingeki no Kyojin",
+    "mal_id": 16498,
+    "total_episodios": 25,
+    "imagem_url": "https://cdn.myanimelist.net/images/anime/10/47347.jpg",
+    "status": "abandonado",
+    "episodios_vistos": 12,
+    "nota": 7
+  },
+  {
+    "titulo": "Jujutsu Kaisen",
+    "mal_id": 40748,
+    "total_episodios": 24,
+    "imagem_url": "https://cdn.myanimelist.net/images/anime/1171/109222.jpg",
+    "status": "quero_ver",
+    "episodios_vistos": 0,
+    "nota": null
+  },
+  {
+    "titulo": "Kimetsu no Yaiba",
+    "mal_id": 38000,
+    "total_episodios": 26,
+    "imagem_url": "https://cdn.myanimelist.net/images/anime/1286/99889.jpg",
+    "status": "quero_ver",
+    "episodios_vistos": 0,
+    "nota": null
+  },
+  {
+    "titulo": "One Piece",
+    "mal_id": 21,
+    "total_episodios": null,
+    "imagem_url": "https://cdn.myanimelist.net/images/anime/1244/138851.jpg",
+    "status": "assistindo",
+    "episodios_vistos": 1087,
+    "nota": null
+  }
+]
