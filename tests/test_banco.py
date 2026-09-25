@@ -106,6 +106,15 @@ def test_remover(banco):
     assert banco.remover(criado.id) is False
 
 
+def test_remover_apaga_so_o_anime_escolhido(banco):
+    frieren_salvo = banco.adicionar(frieren())
+    bebop = banco.adicionar(AnimeNovo(titulo="Cowboy Bebop", mal_id=1))
+
+    banco.remover(bebop.id)
+
+    assert banco.listar() == [frieren_salvo]
+
+
 def test_titulo_com_aspas_e_sql_e_salvo_como_texto_normal(banco):
     titulo = "Robert'); DROP TABLE animes;--"
 
