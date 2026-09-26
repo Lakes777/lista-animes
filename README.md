@@ -1,10 +1,10 @@
-# 📺 Lista de Animes
+# Lista de Animes
 
 [![Testes](https://github.com/Lakes777/lista-animes/actions/workflows/testes.yml/badge.svg)](https://github.com/Lakes777/lista-animes/actions/workflows/testes.yml)
 
 API REST em Python com **FastAPI** para organizar sua lista de animes: o que você quer ver, o que está vendo e o que já viu. Os dados dos animes (título, episódios e capa) vêm da [Jikan](https://jikan.moe), uma API gratuita com o catálogo do **MyAnimeList**. A própria API também entrega um front em HTML, CSS e JavaScript puros.
 
-### 🌐 [Ver ao vivo](https://lista-animes-b8ql.onrender.com)
+### [Ver ao vivo](https://lista-animes-b8ql.onrender.com)
 
 > Versão de demonstração no plano gratuito do Render: qualquer pessoa pode testar, e a lista volta ao exemplo quando o servidor reinicia. Depois de 15 minutos sem visitas o servidor dorme, e a primeira visita pode levar cerca de 1 minuto para carregar.
 
@@ -69,7 +69,7 @@ A lista fica salva em `animes.db` (SQLite), na pasta de onde o comando foi rodad
 LISTA_ANIMES_BANCO=outra-lista.db python -m lista_animes
 ```
 
-> 💡 A busca **por nome** da Jikan consulta o MyAnimeList na hora e às vezes fica fora do ar. A busca **por ID ou link** (ex.: `myanimelist.net/anime/52991`) usa uma cópia guardada pela Jikan e costuma funcionar mesmo assim.
+> **Dica:** a busca **por nome** da Jikan consulta o MyAnimeList na hora e às vezes fica fora do ar. A busca **por ID ou link** (ex.: `myanimelist.net/anime/52991`) usa uma cópia guardada pela Jikan e costuma funcionar mesmo assim.
 
 ## Publicação online
 
