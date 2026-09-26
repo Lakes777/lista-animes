@@ -9,7 +9,7 @@ API REST em Python com **FastAPI** para organizar sua lista de animes: o que voc
 > Versão de demonstração no plano gratuito do Render: qualquer pessoa pode testar, e a lista volta ao exemplo quando o servidor reinicia. Depois de 15 minutos sem visitas o servidor dorme, e a primeira visita pode levar cerca de 1 minuto para carregar.
 
 <p align="center">
-  <img src="docs/demo.gif" alt="Demonstração: colando o link do Hunter x Hunter no MyAnimeList, adicionando à lista, clicando em +1 episódio, dando nota, trocando as abas de status e filtrando por título" width="800">
+  <img src="docs/demo.gif" alt="Demonstração: digitando o episódio do Frieren, escrevendo um comentário sobre o episódio 10, abrindo Outras temporadas e adicionando a 2ª temporada, que aparece junto da 1ª no quadro da franquia, e filtrando pela aba Quero ver" width="800">
 </p>
 
 ## Funcionalidades
