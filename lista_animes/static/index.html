@@ -75,7 +75,9 @@
     <article class="cartao">
       <img class="cartao__capa" alt="" loading="lazy">
       <div class="cartao__corpo">
+        <p class="cartao__temporada" hidden></p>
         <h3 class="cartao__titulo"></h3>
+        <button class="cartao__link" type="button" data-acao="temporadas" hidden>Ver outras temporadas</button>
         <label class="rotulo">Status
           <select class="campo campo--pequeno" data-campo="status">
             <option value="quero_ver">Quero ver</option>
@@ -104,6 +106,30 @@
         </div>
       </div>
     </article>
+  </template>
+
+  <!-- Temporadas da mesma franquia ficam juntas neste quadro -->
+  <template id="molde-franquia">
+    <section class="franquia">
+      <div class="franquia__topo">
+        <div>
+          <h3 class="franquia__titulo"></h3>
+          <p class="franquia__info"></p>
+        </div>
+        <button class="botao botao--pequeno botao--fantasma" type="button" data-acao="temporadas">Outras temporadas</button>
+      </div>
+      <div class="grade franquia__grade"></div>
+    </section>
+  </template>
+
+  <template id="molde-temporada">
+    <li class="temporada">
+      <div>
+        <span class="temporada__relacao"></span>
+        <span class="temporada__titulo"></span>
+      </div>
+      <button class="botao botao--pequeno" type="button">+ Adicionar</button>
+    </li>
   </template>
 
   <template id="molde-comentario">
@@ -135,6 +161,19 @@
     </form>
     <p class="aviso" id="aviso-comentarios" hidden></p>
     <ul class="comentarios" id="lista-comentarios"></ul>
+  </dialog>
+
+  <!-- Temporadas da franquia que faltam na lista (consultadas no MyAnimeList) -->
+  <dialog class="dialogo" id="dialogo-temporadas" aria-labelledby="temporadas-titulo">
+    <div class="dialogo__topo">
+      <div>
+        <h2 class="dialogo__titulo" id="temporadas-titulo">Outras temporadas</h2>
+        <p class="dialogo__subtitulo" id="temporadas-franquia"></p>
+      </div>
+      <button class="botao botao--pequeno botao--fantasma" type="button" data-fechar>Fechar</button>
+    </div>
+    <p class="aviso" id="aviso-temporadas" hidden></p>
+    <ul class="temporadas" id="lista-temporadas"></ul>
   </dialog>
 
   <div class="mensagem" id="mensagem" role="status" hidden></div>

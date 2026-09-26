@@ -2,7 +2,15 @@
 // Todo texto vindo da API entra na página com textContent, que não interpreta HTML,
 // então um título como "<script>..." aparece como texto e não é executado.
 
-const estado = { status: "", busca: "", malIdsNaLista: new Set(), animeComentado: null };
+const estado = {
+  status: "",
+  busca: "",
+  malIdsNaLista: new Set(),
+  franquias: new Map(), // número da franquia -> temporadas dela (da lista completa)
+  rotulos: new Map(), // id do anime -> "Temporada 2", "Filme"...
+  animeComentado: null,
+  temporadasDe: null, // anime cujas outras temporadas estão abertas na janela
+};
 
 const $ = (seletor) => document.querySelector(seletor);
 
@@ -119,10 +127,109 @@ function preencherCapa(img, anime) {
   }
 }
 
+// ---------- Temporadas (franquias) ----------
+
+// No MyAnimeList, filmes e OVAs também fazem parte da franquia; eles não contam como temporada.
+const NOMES_DOS_TIPOS = {
+  Movie: "Filme",
+  OVA: "OVA",
+  ONA: "ONA",
+  Special: "Especial",
+  "TV Special": "Especial",
+  Music: "Clipe",
+};
+
+function organizarFranquias(todos) {
+  // A API já manda as temporadas juntas e em ordem de estreia.
+  estado.franquias = new Map();
+  for (const anime of todos) {
+    if (!estado.franquias.has(anime.franquia)) estado.franquias.set(anime.franquia, []);
+    estado.franquias.get(anime.franquia).push(anime);
+  }
+  estado.rotulos = new Map();
+  for (const temporadas of estado.franquias.values()) {
+    if (temporadas.length < 2) continue;
+    let numero = 0;
+    for (const anime of temporadas) {
+      estado.rotulos.set(anime.id, NOMES_DOS_TIPOS[anime.tipo] ?? `Temporada ${++numero}`);
+    }
+  }
+}
+
+function criarFranquia(temporadas, visiveis) {
+  const quadro = $("#molde-franquia").content.firstElementChild.cloneNode(true);
+  const nome = temporadas[0].titulo; // a primeira a estrear dá nome à franquia
+  quadro.querySelector(".franquia__titulo").textContent = nome;
+  const soTemporadas = temporadas.every((a) => !(a.tipo in NOMES_DOS_TIPOS));
+  quadro.querySelector(".franquia__info").textContent =
+    `${temporadas.length} ${soTemporadas ? "temporadas" : "itens"} na lista`;
+  quadro.querySelector('[data-acao="temporadas"]').addEventListener("click", () =>
+    abrirTemporadas(temporadas.at(-1), nome),
+  );
+  quadro.querySelector(".franquia__grade").replaceChildren(...visiveis.map(criarCartaoAnime));
+  return quadro;
+}
+
+function criarItemTemporada(relacionado) {
+  const item = $("#molde-temporada").content.firstElementChild.cloneNode(true);
+  item.querySelector(".temporada__relacao").textContent =
+    relacionado.relacao === "anterior" ? "Vem antes" : "Vem depois";
+  item.querySelector(".temporada__titulo").textContent = relacionado.titulo;
+  item.querySelector("button").addEventListener("click", async (evento) => {
+    const botao = evento.currentTarget;
+    botao.disabled = true;
+    try {
+      await api(`/animes/do-catalogo/${relacionado.mal_id}`, { method: "POST" });
+      mostrarMensagem(`"${relacionado.titulo}" entrou na sua lista!`);
+      await atualizarTudo();
+      await carregarTemporadas(); // procura a próxima (a franquia agora vai mais longe)
+    } catch (erro) {
+      mostrarMensagem(erro.message, true);
+      botao.disabled = false;
+    }
+  });
+  return item;
+}
+
+async function carregarTemporadas() {
+  const aviso = $("#aviso-temporadas");
+  $("#lista-temporadas").replaceChildren();
+  mostrarAviso(aviso, "Procurando no MyAnimeList...");
+  try {
+    const faltando = await api(`/animes/${estado.temporadasDe.id}/outras-temporadas`);
+    $("#lista-temporadas").replaceChildren(...faltando.map(criarItemTemporada));
+    // A consulta pode ter juntado temporadas que estavam separadas: atualiza a lista.
+    await atualizarTudo();
+    mostrarAviso(aviso, faltando.length
+      ? ""
+      : "Nenhuma outra temporada encontrada: as que existem já estão na sua lista.");
+  } catch (erro) {
+    mostrarAviso(aviso, erro.message);
+  }
+}
+
+function abrirTemporadas(anime, nome) {
+  estado.temporadasDe = anime;
+  $("#temporadas-franquia").textContent = nome;
+  $("#dialogo-temporadas").showModal();
+  carregarTemporadas();
+}
+
+// ---------- Cartões da lista ----------
+
 function criarCartaoAnime(anime) {
   const cartao = $("#molde-anime").content.firstElementChild.cloneNode(true);
   preencherCapa(cartao.querySelector(".cartao__capa"), anime);
   cartao.querySelector(".cartao__titulo").textContent = anime.titulo;
+
+  const rotulo = estado.rotulos.get(anime.id);
+  const temporada = cartao.querySelector(".cartao__temporada");
+  temporada.textContent = rotulo ?? "";
+  temporada.hidden = !rotulo;
+  // Anime sozinho: o link procura as outras temporadas. Em franquia, o botão fica no quadro.
+  const outras = cartao.querySelector('[data-acao="temporadas"]');
+  outras.hidden = Boolean(rotulo) || anime.mal_id === null;
+  outras.addEventListener("click", () => abrirTemporadas(anime, anime.titulo));
   const vistos = cartao.querySelector('[data-campo="vistos"]');
   vistos.value = anime.episodios_vistos;
   if (anime.total_episodios !== null) vistos.max = anime.total_episodios;
@@ -166,7 +273,19 @@ async function carregarLista() {
   if (estado.busca) parametros.set("busca", estado.busca);
 
   const animes = await api(`/animes?${parametros}`);
-  $("#lista").replaceChildren(...animes.map(criarCartaoAnime));
+  // Junta as temporadas da mesma franquia num quadro (elas já vêm uma depois da outra).
+  const elementos = [];
+  for (let i = 0; i < animes.length; ) {
+    const visiveis = [animes[i]];
+    while (animes[i + visiveis.length]?.franquia === animes[i].franquia) {
+      visiveis.push(animes[i + visiveis.length]);
+    }
+    i += visiveis.length;
+    const temporadas = estado.franquias.get(visiveis[0].franquia) ?? visiveis;
+    if (temporadas.length > 1) elementos.push(criarFranquia(temporadas, visiveis));
+    else elementos.push(...visiveis.map(criarCartaoAnime));
+  }
+  $("#lista").replaceChildren(...elementos);
 
   let aviso = "";
   if (animes.length === 0) {
@@ -182,6 +301,7 @@ async function atualizarTudo() {
   // A lista completa (sem filtro) diz quais animes do catálogo já foram adicionados.
   const todos = await api("/animes");
   estado.malIdsNaLista = new Set(todos.map((a) => a.mal_id).filter(Boolean));
+  organizarFranquias(todos);
   await Promise.all([carregarLista(), carregarEstatisticas()]);
   marcarAdicionadosNoCatalogo();
 }

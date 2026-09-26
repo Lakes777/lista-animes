@@ -6,7 +6,9 @@
     "imagem_url": "https://cdn.myanimelist.net/images/anime/1015/138006.jpg",
     "status": "assistindo",
     "episodios_vistos": 19,
-    "nota": 10
+    "nota": 10,
+    "tipo": "TV",
+    "estreia": "2023-09-29"
   },
   {
     "titulo": "Fullmetal Alchemist: Brotherhood",
@@ -15,7 +17,9 @@
     "imagem_url": "https://cdn.myanimelist.net/images/anime/1208/94745.jpg",
     "status": "concluido",
     "episodios_vistos": 64,
-    "nota": 10
+    "nota": 10,
+    "tipo": "TV",
+    "estreia": "2009-04-05"
   },
   {
     "titulo": "Steins;Gate",
@@ -24,7 +28,9 @@
     "imagem_url": "https://cdn.myanimelist.net/images/anime/1935/127974.jpg",
     "status": "concluido",
     "episodios_vistos": 24,
-    "nota": 9
+    "nota": 9,
+    "tipo": "TV",
+    "estreia": "2011-04-06"
   },
   {
     "titulo": "Cowboy Bebop",
@@ -33,7 +39,9 @@
     "imagem_url": "https://cdn.myanimelist.net/images/anime/4/19644.jpg",
     "status": "assistindo",
     "episodios_vistos": 9,
-    "nota": null
+    "nota": null,
+    "tipo": "TV",
+    "estreia": "1998-04-03"
   },
   {
     "titulo": "Shingeki no Kyojin",
@@ -42,7 +50,23 @@
     "imagem_url": "https://cdn.myanimelist.net/images/anime/10/47347.jpg",
     "status": "abandonado",
     "episodios_vistos": 12,
-    "nota": 7
+    "nota": 7,
+    "tipo": "TV",
+    "estreia": "2013-04-07"
+  },
+  {
+    "titulo": "Shingeki no Kyojin Season 2",
+    "mal_id": 25777,
+    "total_episodios": 12,
+    "imagem_url": "https://cdn.myanimelist.net/images/anime/4/84177.jpg",
+    "status": "quero_ver",
+    "episodios_vistos": 0,
+    "nota": null,
+    "tipo": "TV",
+    "estreia": "2017-04-01",
+    "relacionados": [
+      16498
+    ]
   },
   {
     "titulo": "Jujutsu Kaisen",
@@ -51,7 +75,9 @@
     "imagem_url": "https://cdn.myanimelist.net/images/anime/1171/109222.jpg",
     "status": "quero_ver",
     "episodios_vistos": 0,
-    "nota": null
+    "nota": null,
+    "tipo": "TV",
+    "estreia": "2020-10-03"
   },
   {
     "titulo": "Kimetsu no Yaiba",
@@ -60,7 +86,9 @@
     "imagem_url": "https://cdn.myanimelist.net/images/anime/1286/99889.jpg",
     "status": "quero_ver",
     "episodios_vistos": 0,
-    "nota": null
+    "nota": null,
+    "tipo": "TV",
+    "estreia": "2019-04-06"
   },
   {
     "titulo": "One Piece",
@@ -69,6 +97,8 @@
     "imagem_url": "https://cdn.myanimelist.net/images/anime/1244/138851.jpg",
     "status": "assistindo",
     "episodios_vistos": 1087,
-    "nota": null
+    "nota": null,
+    "tipo": "TV",
+    "estreia": "1999-10-20"
   }
 ]

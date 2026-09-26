@@ -16,7 +16,9 @@ API REST em Python com **FastAPI** para organizar sua lista de animes: o que voc
 
 - **Adicionar do MyAnimeList:** busque pelo nome, pelo ID ou colando o link do anime. Título, número de episódios e capa são preenchidos sozinhos.
 - **Acompanhar o progresso:** status (quero ver, assistindo, concluído, abandonado), episódios vistos com barra de progresso e nota de 1 a 10.
-- **Botão +1 ep.:** soma um episódio. Ao começar, o anime passa para "assistindo". No último episódio, vira "concluído".
+- **Escolher o episódio:** digite o número (ou use as setinhas), ou clique em **+1 ep.**. Ao começar, o anime passa para "assistindo". No último episódio, vira "concluído".
+- **Temporadas juntas:** no MyAnimeList, cada temporada é um anime separado. Ao adicionar, a API vê na Jikan qual é a temporada anterior e a seguinte, e as temporadas da mesma franquia ficam num quadro só ("Temporada 1", "Temporada 2", "Filme"...). O botão **Outras temporadas** mostra as que faltam e adiciona com um clique.
+- **Comentários:** cada anime tem um histórico de anotações com data, e cada uma pode dizer o episódio ("ep. 7: que luta!").
 - **Filtros:** abas por status e busca por parte do título.
 - **Estatísticas:** total de animes, quantos por status, episódios assistidos e nota média.
 - **Documentação automática:** todas as rotas podem ser testadas no navegador em `/docs`.
@@ -35,7 +37,11 @@ API REST em Python com **FastAPI** para organizar sua lista de animes: o que voc
 | `POST` | `/animes/do-catalogo/{mal_id}` | Adiciona pelo ID do MyAnimeList, com os dados da Jikan |
 | `GET` | `/animes/{id}` | Mostra um anime da lista |
 | `PATCH` | `/animes/{id}` | Muda só os campos enviados (status, episódios, nota...) |
-| `DELETE` | `/animes/{id}` | Tira da lista |
+| `DELETE` | `/animes/{id}` | Tira da lista (e apaga os comentários dele) |
+| `GET` | `/animes/{id}/outras-temporadas` | Temporadas da franquia que ainda não estão na lista |
+| `GET` | `/animes/{id}/comentarios` | Comentários do anime, do mais novo para o mais antigo |
+| `POST` | `/animes/{id}/comentarios` | Escreve um comentário (episódio opcional) |
+| `DELETE` | `/animes/{id}/comentarios/{comentario_id}` | Apaga um comentário |
 | `GET` | `/animes/estatisticas` | Resumo da lista |
 | `GET` | `/catalogo/busca?q=frieren` | Procura animes no MyAnimeList |
 | `GET` | `/catalogo/{mal_id}` | Detalhes de um anime: sinopse, gêneros, ano, nota no MAL |
@@ -88,10 +94,10 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-São 98 testes cobrindo as validações, o banco de dados, as rotas, o catálogo e os arquivos do front. **Nenhum teste acessa a internet nem a sua lista real:**
+São 143 testes cobrindo as validações, o banco de dados, as rotas, o catálogo, as temporadas, os comentários e os arquivos do front. **Nenhum teste acessa a internet nem a sua lista real:**
 
 - Cada teste usa um banco novo numa pasta temporária (`tmp_path`).
-- A Jikan é substituída por uma imitação (`httpx.MockTransport`) que responde com uma resposta real gravada em `tests/dados/`. Se o código tentar uma consulta que o teste não previu, o teste falha.
+- A Jikan é substituída por uma imitação (`httpx.MockTransport`) que responde com respostas reais gravadas em `tests/dados/` (Frieren e as duas primeiras temporadas de Attack on Titan). Se o código tentar uma consulta que o teste não previu, o teste falha.
 
 O GitHub Actions roda tudo a cada push, nas versões 3.10 a 3.14 do Python.
 
@@ -118,7 +124,10 @@ lista-animes/
 - **SQLite com SQL escrito à mão, sem ORM:** o `sqlite3` já vem com o Python, e escrever o `INSERT`, o `SELECT ... GROUP BY` e o `UPDATE` mostra o que acontece por baixo. Os valores sempre vão por marcadores (`:titulo`, `?`), nunca colados no texto do SQL. Isso protege contra **SQL injection**, e um teste salva o título `Robert'); DROP TABLE animes;--` para conferir.
 - **`LIKE` com escape:** no SQL, `%` e `_` são curingas. Sem tratamento, buscar `_` traria a lista inteira. Esses caracteres são escapados e buscados como texto.
 - **Validação no Pydantic, inclusive nas edições:** o `PATCH` junta o anime salvo com os campos enviados e valida o resultado inteiro. Assim a regra "episódios vistos ≤ total" vale mesmo quando só um dos dois muda.
-- **Migração ao abrir o banco:** a validação do link da capa foi criada depois de já existirem dados salvos. Um item antigo com um link inválido derrubava a listagem inteira (erro 500). Agora, ao ligar, o servidor limpa esses links, e um teste simula um banco da versão antiga.
+- **Migração ao abrir o banco:** a validação do link da capa foi criada depois de já existirem dados salvos. Um item antigo com um link inválido derrubava a listagem inteira (erro 500). Agora, ao ligar, o servidor limpa esses links, e um teste simula um banco da versão antiga. Do mesmo jeito, bancos antigos ganham as colunas novas (`tipo`, `estreia`, `franquia`) com `ALTER TABLE`, e a data das temporadas antigas é buscada na Jikan quando elas entram numa franquia.
+- **Temporadas por franquia:** cada anime guarda o número da sua franquia. Ao entrar, ele adota a franquia da temporada anterior ou da seguinte, se alguma já estiver na lista. Se ele for a peça que faltava entre duas (a 2ª temporada chegando depois da 1ª e da 3ª), as duas franquias viram uma só, tudo numa transação. A lista ordena as temporadas pela data de estreia.
+- **Resistente ao MyAnimeList fora do ar:** os detalhes vêm do `/anime/{id}/full`, que traz as temporadas vizinhas na mesma consulta. Com o MyAnimeList fora do ar, a Jikan só responde o `/full` se tiver uma cópia guardada. Nesse caso a API usa o `/anime/{id}` simples, e o anime entra sem as temporadas ("não sei" é diferente de "não tem"). Quando o MyAnimeList volta, o botão **Outras temporadas** encontra a vizinha na lista e junta as duas.
+- **Comentários apagados junto com o anime:** a tabela `comentarios` usa `ON DELETE CASCADE`. O SQLite só respeita isso com `PRAGMA foreign_keys = ON`, que precisa ser ligado em cada conexão, e um teste confere o arquivo do banco depois de remover o anime.
 - **Falhas da Jikan viram mensagens claras:** erro 5xx, limite de consultas (429), demora (timeout), sem internet ou resposta em formato estranho viram um **503** com uma mensagem legível, em vez de um erro genérico. A Jikan foi escolhida por não pedir chave de acesso, então o projeto não tem nenhum segredo.
 - **Banco e catálogo entregues à aplicação:** `criar_app(caminho_banco, catalogo)` recebe as duas dependências, e as rotas as pegam com `Depends`. Por isso os testes trocam o banco por um temporário e a Jikan por uma imitação, sem nenhum truque.
 - **Front sem framework e sem XSS:** o front usa HTML, CSS e JavaScript puros, servidos pela própria API. É um servidor só, sem problema de CORS. Os textos que vêm da API entram na página com `textContent`, que não interpreta HTML, e um teste garante que o `app.js` nunca usa `innerHTML`.

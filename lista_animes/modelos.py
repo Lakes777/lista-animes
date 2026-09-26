@@ -4,7 +4,8 @@ O Pydantic valida tudo sozinho. Se chegar uma nota 11 ou um título vazio,
 a API recusa antes de qualquer coisa ser salva no banco.
 """
 
-from datetime import datetime
+from datetime import date, datetime
+from typing import Literal
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -48,6 +49,8 @@ class AnimeNovo(BaseModel):
     status: Status = Status.QUERO_VER
     episodios_vistos: int = Field(default=0, ge=0)
     nota: int | None = Field(default=None, ge=1, le=10, description="De 1 a 10, como no MyAnimeList")
+    tipo: str | None = Field(default=None, max_length=20, description="TV, Movie, OVA...")
+    estreia: date | None = Field(default=None, description="Data de estreia (ordena as temporadas)")
 
     @model_validator(mode="after")
     def vistos_cabem_no_total(self) -> "AnimeNovo":
@@ -80,6 +83,9 @@ class Anime(AnimeNovo):
 
     id: int
     criado_em: datetime
+    franquia: int = Field(
+        description="Animes com o mesmo número são temporadas (ou filmes) da mesma história"
+    )
     comentarios: int = Field(default=0, description="Quantos comentários o anime tem")
 
 
@@ -112,6 +118,14 @@ class Estatisticas(BaseModel):
     nota_media: float | None = Field(description="Média das notas dadas, com 1 casa decimal")
 
 
+class Relacionado(BaseModel):
+    """A temporada (ou filme) que vem antes ou depois de um anime no MyAnimeList."""
+
+    mal_id: int
+    titulo: str
+    relacao: Literal["anterior", "seguinte"]
+
+
 class AnimeCatalogo(BaseModel):
     """Um anime do catálogo da Jikan (MyAnimeList), ainda fora da sua lista."""
 
@@ -125,3 +139,9 @@ class AnimeCatalogo(BaseModel):
     tipo: str | None = Field(default=None, description="TV, Movie, OVA...")
     sinopse: str | None = None
     generos: list[str] = []
+    estreia: date | None = None
+    relacionados: list[Relacionado] | None = Field(
+        default=None,
+        description="Temporada anterior e seguinte. None quando não deu para saber "
+        "(a busca não traz, e o MyAnimeList pode estar fora do ar)",
+    )

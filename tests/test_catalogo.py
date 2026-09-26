@@ -63,13 +63,13 @@ def test_buscar_remove_animes_repetidos(catalogo, jikan):
 
 
 def test_detalhes(catalogo, jikan):
-    jikan.responder("/anime/52991", httpx.Response(200, json=frieren_da_jikan()))
+    jikan.responder("/anime/52991/full", httpx.Response(200, json=frieren_da_jikan()))
 
     assert catalogo.detalhes(52991).titulo == "Sousou no Frieren"
 
 
 def test_detalhes_de_anime_que_nao_existe_devolve_none(catalogo, jikan):
-    jikan.responder("/anime/999999", httpx.Response(404, json={"status": 404}))
+    jikan.responder("/anime/999999/full", httpx.Response(404, json={"status": 404}))
 
     assert catalogo.detalhes(999999) is None
 
@@ -89,10 +89,32 @@ def test_detalhes_de_anime_que_nao_existe_devolve_none(catalogo, jikan):
     ],
 )
 def test_falhas_da_jikan_viram_mensagens_amigaveis(catalogo, jikan, resposta, mensagem):
+    # A Jikan inteira falhando: a busca, o /full e o /anime/{id} simples (a reserva).
     jikan.responder("/anime", resposta)
+    jikan.responder("/anime/52991/full", resposta)
     jikan.responder("/anime/52991", resposta)
 
     with pytest.raises(CatalogoIndisponivel, match=mensagem):
         catalogo.buscar("frieren")
     with pytest.raises(CatalogoIndisponivel, match=mensagem):
         catalogo.detalhes(52991)
+
+
+def test_com_o_full_fora_do_ar_detalhes_vem_sem_as_temporadas(catalogo, jikan):
+    # O que acontece com o MyAnimeList fora do ar: só a cópia guardada pela Jikan responde.
+    jikan.responder("/anime/52991/full", httpx.Response(504))
+    simples = frieren_da_jikan()
+    del simples["data"]["relations"]  # o /anime/{id} simples não traz as relações
+    jikan.responder("/anime/52991", httpx.Response(200, json=simples))
+
+    anime = catalogo.detalhes(52991)
+
+    assert anime.titulo == "Sousou no Frieren"
+    assert anime.relacionados is None  # "não sei", e não "não tem"
+
+
+def test_full_que_responde_nao_usa_a_reserva(catalogo, jikan):
+    jikan.responder("/anime/52991/full", httpx.Response(200, json=frieren_da_jikan()))
+
+    assert [r.mal_id for r in catalogo.detalhes(52991).relacionados] == [59978]
+    assert [p.url.path for p in jikan.pedidos] == ["/v4/anime/52991/full"]

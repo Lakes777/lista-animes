@@ -6,15 +6,45 @@ com erro 504, quando o MyAnimeList está fora do ar. Por isso, toda falha vira
 CatalogoIndisponivel, com uma mensagem que dá para mostrar a quem usa a API.
 """
 
+from datetime import date
+
 import httpx
 
-from lista_animes.modelos import AnimeCatalogo
+from lista_animes.modelos import AnimeCatalogo, Relacionado
 
 URL_JIKAN = "https://api.jikan.moe/v4"
 
 
+# No MyAnimeList, cada temporada é um anime separado, ligado aos outros por "relações".
+# Só Prequel (a anterior) e Sequel (a seguinte) contam como temporadas; spin-offs,
+# resumos e histórias paralelas ficam de fora.
+RELACOES = {"Prequel": "anterior", "Sequel": "seguinte"}
+
+
 class CatalogoIndisponivel(Exception):
     """A Jikan não respondeu direito. A mensagem explica o motivo."""
+
+
+def ler_estreia(dados: dict) -> date | None:
+    # A Jikan manda "2023-09-29T00:00:00+00:00"; só a data interessa.
+    inicio = (dados.get("aired") or {}).get("from")
+    return date.fromisoformat(inicio[:10]) if inicio else None
+
+
+def ler_relacionados(dados: dict) -> list[Relacionado] | None:
+    if "relations" not in dados:
+        return None  # a resposta não diz nada sobre temporadas (não é o mesmo que "não tem")
+    relacionados = []
+    for grupo in dados.get("relations") or []:
+        relacao = RELACOES.get(grupo["relation"])
+        if relacao is None:
+            continue
+        for item in grupo["entry"]:
+            if item["type"] == "anime":  # a relação também pode apontar para um mangá
+                relacionados.append(
+                    Relacionado(mal_id=item["mal_id"], titulo=item["name"], relacao=relacao)
+                )
+    return relacionados
 
 
 def ler_anime(dados: dict) -> AnimeCatalogo:
@@ -31,6 +61,8 @@ def ler_anime(dados: dict) -> AnimeCatalogo:
             tipo=dados.get("type"),
             sinopse=dados.get("synopsis"),
             generos=[genero["name"] for genero in dados.get("genres", [])],
+            estreia=ler_estreia(dados),
+            relacionados=ler_relacionados(dados),
         )
     except (KeyError, TypeError, ValueError) as erro:
         raise CatalogoIndisponivel("A Jikan respondeu num formato inesperado.") from erro
@@ -78,8 +110,17 @@ class Catalogo:
         return animes
 
     def detalhes(self, mal_id: int) -> AnimeCatalogo | None:
-        """Busca um anime pelo ID do MyAnimeList. Devolve None se ele não existir."""
-        resposta = self._get(f"/anime/{mal_id}")
+        """Busca um anime pelo ID do MyAnimeList. Devolve None se ele não existir.
+
+        Tenta a versão /full, que já traz as relações (temporada anterior e seguinte).
+        Com o MyAnimeList fora do ar, a Jikan só responde o /full se tiver uma cópia
+        guardada; já o /anime/{id} simples ela quase sempre tem. Então, se o /full
+        falhar, usa o simples: o anime vem sem as relações (relacionados = None).
+        """
+        try:
+            resposta = self._get(f"/anime/{mal_id}/full")
+        except CatalogoIndisponivel:
+            resposta = self._get(f"/anime/{mal_id}")
         if resposta.status_code == 404:
             return None
         if resposta.status_code != 200:

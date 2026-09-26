@@ -6,9 +6,9 @@ em threads diferentes, e uma conexão do sqlite3 não pode ser dividida entre el
 """
 
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import closing, contextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
@@ -33,7 +33,10 @@ CREATE TABLE IF NOT EXISTS animes (
     status           TEXT    NOT NULL,
     episodios_vistos INTEGER NOT NULL DEFAULT 0,
     nota             INTEGER,
-    criado_em        TEXT    NOT NULL
+    criado_em        TEXT    NOT NULL,
+    tipo             TEXT,
+    estreia          TEXT,
+    franquia         INTEGER
 )
 """,
     # ON DELETE CASCADE: quando um anime sai da lista, os comentários dele vão junto.
@@ -49,11 +52,21 @@ CREATE TABLE IF NOT EXISTS comentarios (
     "CREATE INDEX IF NOT EXISTS comentarios_por_anime ON comentarios (anime_id)",
 ]
 
+# Colunas que entraram depois da primeira versão. Bancos antigos ganham elas ao abrir.
+COLUNAS_NOVAS = {"tipo": "TEXT", "estreia": "TEXT", "franquia": "INTEGER"}
+
 # Cada anime vem com a contagem de comentários, calculada na hora pelo SQLite.
 SELECIONAR_ANIMES = (
     "SELECT animes.*, "
     "(SELECT COUNT(*) FROM comentarios WHERE comentarios.anime_id = animes.id) AS comentarios "
     "FROM animes"
+)
+
+# Temporadas da mesma franquia ficam juntas: as franquias na ordem em que foram
+# adicionadas e, dentro de cada uma, as temporadas pela data de estreia.
+ORDEM_DA_LISTA = (
+    "ORDER BY (SELECT MIN(outro.id) FROM animes AS outro WHERE outro.franquia = animes.franquia), "
+    "animes.estreia IS NULL, animes.estreia, animes.id"
 )
 
 
@@ -63,6 +76,9 @@ MIGRACOES = [
     # Sem isso, um único item antigo inválido derrubava a listagem inteira.
     "UPDATE animes SET imagem_url = NULL "
     "WHERE imagem_url NOT LIKE 'http://_%' AND imagem_url NOT LIKE 'https://_%'",
+    # Antes não havia franquias: cada anime antigo vira uma franquia sozinho.
+    "UPDATE animes SET franquia = id WHERE franquia IS NULL",
+    "CREATE INDEX IF NOT EXISTS animes_por_franquia ON animes (franquia)",
 ]
 
 
@@ -80,6 +96,10 @@ class Banco:
         with self._conectar() as conexao:
             for comando in CRIAR_TABELAS:
                 conexao.execute(comando)
+            existentes = {linha["name"] for linha in conexao.execute("PRAGMA table_info(animes)")}
+            for coluna, tipo in COLUNAS_NOVAS.items():
+                if coluna not in existentes:
+                    conexao.execute(f"ALTER TABLE animes ADD COLUMN {coluna} {tipo}")
             for migracao in MIGRACOES:
                 conexao.execute(migracao)
 
@@ -93,21 +113,50 @@ class Banco:
             with conexao:  # confirma (commit) no final, ou desfaz tudo se der erro
                 yield conexao
 
-    def adicionar(self, novo: AnimeNovo) -> Anime:
+    def adicionar(self, novo: AnimeNovo, relacionados: Iterable[int] = ()) -> Anime:
+        """Salva o anime. relacionados são os mal_id da temporada anterior e da seguinte:
+        se alguma delas já estiver na lista, o anime entra na franquia dela."""
         dados = novo.model_dump(mode="json")
         dados["criado_em"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         colunas = ", ".join(dados)
         marcadores = ", ".join(f":{coluna}" for coluna in dados)
+        relacionados = list(relacionados)
         try:
+            # Tudo numa transação só: o anime nunca fica salvo sem franquia.
             with self._conectar() as conexao:
                 # Os valores vão por marcadores (:titulo), nunca colados no texto do SQL.
                 # Isso evita SQL injection.
                 cursor = conexao.execute(
                     f"INSERT INTO animes ({colunas}) VALUES ({marcadores})", dados
                 )
+                anime_id = cursor.lastrowid
+                franquia = self._juntar_franquias(conexao, anime_id, relacionados)
         except sqlite3.IntegrityError as erro:
             raise AnimeRepetido(f"O anime com mal_id {novo.mal_id} já está na lista") from erro
-        return Anime(id=cursor.lastrowid, **dados)
+        return Anime(id=anime_id, franquia=franquia, **dados)
+
+    @staticmethod
+    def _juntar_franquias(conexao: sqlite3.Connection, anime_id: int, relacionados: list[int]) -> int:
+        marcadores = ", ".join("?" * len(relacionados))
+        # A franquia do próprio anime (se já tiver) e as das temporadas vizinhas na lista.
+        franquias = [
+            linha[0]
+            for linha in conexao.execute(
+                f"SELECT DISTINCT franquia FROM animes WHERE id = ? OR mal_id IN ({marcadores})",
+                [anime_id, *relacionados],
+            )
+            if linha[0] is not None
+        ]
+        # Sem parentes na lista, o anime começa uma franquia nova (com o próprio id).
+        # Se ele liga duas franquias (tinha a 1ª e a 3ª temporada e chegou a 2ª),
+        # as duas viram uma só.
+        franquia = min(franquias, default=anime_id)
+        marcadores = ", ".join("?" * len(franquias))
+        conexao.execute(
+            f"UPDATE animes SET franquia = ? WHERE id = ? OR franquia IN ({marcadores})",
+            [franquia, anime_id, *franquias],
+        )
+        return franquia
 
     def listar(self, status: Status | None = None, busca: str | None = None) -> list[Anime]:
         # Monta o WHERE só com os filtros que foram pedidos.
@@ -123,7 +172,7 @@ class Banco:
         where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
         with self._conectar() as conexao:
             linhas = conexao.execute(
-                f"{SELECIONAR_ANIMES} {where} ORDER BY id", valores
+                f"{SELECIONAR_ANIMES} {where} {ORDEM_DA_LISTA}", valores
             ).fetchall()
         return [Anime(**linha) for linha in linhas]
 
@@ -172,6 +221,37 @@ class Banco:
                     f"UPDATE animes SET {atribuicoes} WHERE id = :id", {**dados, "id": anime_id}
                 )
         return atualizado
+
+    def franquia(self, anime_id: int) -> list[Anime] | None:
+        """Todas as temporadas da franquia do anime, em ordem. None se o anime não existe."""
+        anime = self.buscar(anime_id)
+        if anime is None:
+            return None
+        with self._conectar() as conexao:
+            linhas = conexao.execute(
+                f"{SELECIONAR_ANIMES} WHERE franquia = ? {ORDEM_DA_LISTA}", (anime.franquia,)
+            ).fetchall()
+        return [Anime(**linha) for linha in linhas]
+
+    def juntar(self, anime_id: int, relacionados: Iterable[int]) -> None:
+        """Junta à franquia do anime as temporadas vizinhas que já estão na lista
+        (para animes que entraram sem as relações, com o MyAnimeList fora do ar)."""
+        with self._conectar() as conexao:
+            self._juntar_franquias(conexao, anime_id, list(relacionados))
+
+    def mal_ids(self) -> set[int]:
+        with self._conectar() as conexao:
+            linhas = conexao.execute("SELECT mal_id FROM animes WHERE mal_id IS NOT NULL")
+            return {linha[0] for linha in linhas}
+
+    def completar(self, anime_id: int, tipo: str | None, estreia: date | None) -> None:
+        """Preenche tipo e estreia de animes salvos antes de existirem esses campos."""
+        with self._conectar() as conexao:
+            conexao.execute(
+                "UPDATE animes SET tipo = COALESCE(tipo, ?), estreia = COALESCE(estreia, ?) "
+                "WHERE id = ?",
+                (tipo, estreia.isoformat() if estreia else None, anime_id),
+            )
 
     def remover(self, anime_id: int) -> bool:
         with self._conectar() as conexao:

@@ -18,6 +18,7 @@ from lista_animes.modelos import (
     Comentario,
     ComentarioNovo,
     Estatisticas,
+    Relacionado,
     Status,
 )
 
@@ -25,6 +26,10 @@ roteador = APIRouter(prefix="/animes", tags=["animes"])
 roteador_catalogo = APIRouter(prefix="/catalogo", tags=["catálogo"])
 
 ERRO_CATALOGO = {503: {"description": "A Jikan (MyAnimeList) está fora do ar"}}
+
+# Máximo de consultas extras à Jikan para completar temporadas antigas sem data
+# (a Jikan aceita cerca de 3 consultas por segundo).
+MAX_COMPLETAR = 3
 
 
 def pegar_banco(request: Request) -> Banco:
@@ -73,10 +78,47 @@ def adicionar(
 ) -> Anime:
     """Adiciona um anime à lista."""
     conferir_limite(banco, limite)
+    return salvar(banco, novo)
+
+
+def salvar(banco: Banco, novo: AnimeNovo, relacionados: list[int] | None = None) -> Anime:
     try:
-        return banco.adicionar(novo)
+        return banco.adicionar(novo, relacionados or [])
     except AnimeRepetido as erro:
         raise HTTPException(status.HTTP_409_CONFLICT, str(erro)) from erro
+
+
+def consultar(
+    catalogo: Catalogo, mal_id: int, consultados: dict[int, AnimeCatalogo | None]
+) -> AnimeCatalogo | None:
+    # Guarda as respostas durante o pedido: o mesmo anime não é consultado duas vezes.
+    if mal_id not in consultados:
+        consultados[mal_id] = catalogo.detalhes(mal_id)
+    return consultados[mal_id]
+
+
+def completar_datas(
+    banco: Banco,
+    catalogo: Catalogo,
+    temporadas: list[Anime],
+    consultados: dict[int, AnimeCatalogo | None],
+) -> list[Anime]:
+    """Busca tipo e estreia das temporadas salvas antes desses campos existirem.
+
+    Sem a data, não dá para saber a ordem das temporadas. Se a Jikan falhar,
+    segue sem ela: a ordem fica pior, mas nada quebra.
+    """
+    faltando = [a for a in temporadas if a.estreia is None and a.mal_id is not None]
+    if not faltando:
+        return temporadas
+    for anime in faltando[:MAX_COMPLETAR]:
+        try:
+            encontrado = consultar(catalogo, anime.mal_id, consultados)
+        except CatalogoIndisponivel:
+            break
+        if encontrado is not None:
+            banco.completar(anime.id, encontrado.tipo, encontrado.estreia)
+    return banco.franquia(temporadas[0].id) or temporadas
 
 
 @roteador.get("")
@@ -123,8 +165,15 @@ def adicionar_do_catalogo(
         total_episodios=encontrado.total_episodios or None,  # a Jikan pode mandar 0
         imagem_url=encontrado.imagem_url,
         status=status_anime,
+        tipo=encontrado.tipo,
+        estreia=encontrado.estreia,
     )
-    return adicionar(novo, banco, limite)
+    # Se a temporada anterior ou a seguinte já estiver na lista, entra na mesma franquia.
+    anime = salvar(banco, novo, [r.mal_id for r in encontrado.relacionados or []])
+    temporadas = banco.franquia(anime.id) or []
+    if len(temporadas) > 1:
+        completar_datas(banco, catalogo, temporadas, {encontrado.mal_id: encontrado})
+    return anime
 
 
 # Esta rota precisa vir antes de /{anime_id}: as rotas são testadas na ordem,
@@ -170,6 +219,48 @@ def apagar(anime_id: int, banco: Banco = Depends(pegar_banco)) -> Response:
     if not banco.remover(anime_id):
         raise nao_encontrado(anime_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@roteador.get(
+    "/{anime_id}/outras-temporadas",
+    responses={404: {"description": "Anime não encontrado"}, **ERRO_CATALOGO},
+)
+def outras_temporadas(
+    anime_id: int,
+    banco: Banco = Depends(pegar_banco),
+    catalogo: Catalogo = Depends(pegar_catalogo),
+) -> list[Relacionado]:
+    """Temporadas da franquia que ainda não estão na lista (a anterior à primeira
+    e a seguinte à última). Depois de adicionar uma, consulte de novo para achar a próxima.
+
+    Se uma vizinha já estiver na lista mas separada (entrou com o MyAnimeList fora
+    do ar, sem as relações), ela é juntada à franquia aqui."""
+    temporadas = banco.franquia(anime_id)
+    if temporadas is None:
+        raise nao_encontrado(anime_id)
+    consultados: dict[int, AnimeCatalogo | None] = {}
+    temporadas = completar_datas(banco, catalogo, temporadas, consultados)
+    # Só as pontas: a do meio já tem as vizinhas na lista.
+    pontas = [a for a in (temporadas[0], temporadas[-1]) if a.mal_id is not None]
+    na_lista = banco.mal_ids()
+    faltando: dict[int, Relacionado] = {}
+    try:
+        for ponta in {a.mal_id: a for a in pontas}.values():
+            encontrado = consultar(catalogo, ponta.mal_id, consultados)
+            if encontrado is None:
+                continue  # saiu do MyAnimeList
+            if encontrado.relacionados is None:
+                raise CatalogoIndisponivel(
+                    "O MyAnimeList está fora do ar, e sem ele não dá para ver as temporadas. "
+                    "Tente mais tarde."
+                )
+            banco.juntar(ponta.id, [r.mal_id for r in encontrado.relacionados])
+            for relacionado in encontrado.relacionados:
+                if relacionado.mal_id not in na_lista:
+                    faltando.setdefault(relacionado.mal_id, relacionado)
+    except CatalogoIndisponivel as erro:
+        raise catalogo_fora_do_ar(erro) from erro
+    return list(faltando.values())
 
 
 @roteador.get("/{anime_id}/comentarios", responses={404: {"description": "Anime não encontrado"}})

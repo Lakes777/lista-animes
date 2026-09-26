@@ -279,6 +279,60 @@ body {
   line-height: 1.3;
 }
 
+.cartao__temporada {
+  margin: 0 0 -4px;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cartao__link {
+  align-self: flex-start;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.cartao__link:hover {
+  color: var(--accent);
+}
+
+/* ---------- Franquias (temporadas juntas) ---------- */
+.franquia {
+  grid-column: 1 / -1; /* ocupa a linha inteira da grade */
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.franquia__topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.franquia__titulo {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.franquia__info {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 .cartao__info,
 .cartao__generos {
   margin: 0;
@@ -372,6 +426,46 @@ body {
   line-height: 1.3;
 }
 
+.dialogo__subtitulo {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.temporadas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.temporada {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.temporada__relacao {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.temporada__titulo {
+  overflow-wrap: anywhere;
+}
+
+.temporada .botao {
+  flex-shrink: 0;
+}
+
 .comentar {
   display: flex;
   flex-direction: column;
@@ -425,6 +519,10 @@ body {
 
 .dialogo .aviso {
   margin: 16px 0 0;
+}
+
+.dialogo__topo + .aviso {
+  margin: 0 0 12px;
 }
 
 /* ---------- Avisos ---------- */
@@ -483,5 +581,9 @@ body {
 
   .episodios .campo--numero {
     width: 4.5em;
+  }
+
+  .franquia {
+    padding: 10px;
   }
 }

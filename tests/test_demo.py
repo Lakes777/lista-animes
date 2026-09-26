@@ -30,6 +30,7 @@ def test_demo_comeca_com_a_lista_de_exemplo(cliente_demo):
 
 def test_exemplos_sao_validos_e_tem_capa():
     for dados in json.loads(ARQUIVO_EXEMPLOS.read_text(encoding="utf-8")):
+        dados.pop("relacionados", None)
         anime = AnimeNovo(**dados)
         assert anime.imagem_url.startswith("https://cdn.myanimelist.net/")
 
@@ -44,7 +45,8 @@ def test_demo_nao_substitui_uma_lista_que_ja_existe(tmp_path, catalogo):
 
 
 def test_demo_recusa_adicionar_depois_do_limite(cliente_demo, jikan):
-    cliente_demo.app.state.limite_animes = 9  # a lista de exemplo tem 8
+    exemplos = len(json.loads(ARQUIVO_EXEMPLOS.read_text(encoding="utf-8")))
+    cliente_demo.app.state.limite_animes = exemplos + 1  # cabe só mais um
 
     primeiro = cliente_demo.post("/animes", json={"titulo": "Nono"})
     passou = cliente_demo.post("/animes", json={"titulo": "Décimo"})
@@ -52,7 +54,7 @@ def test_demo_recusa_adicionar_depois_do_limite(cliente_demo, jikan):
 
     assert primeiro.status_code == 201
     assert passou.status_code == 403
-    assert "até 9 animes" in passou.json()["detail"]
+    assert f"até {exemplos + 1} animes" in passou.json()["detail"]
     assert pelo_catalogo.status_code == 403
     assert jikan.pedidos == []  # o limite é conferido antes de gastar uma consulta à Jikan
 

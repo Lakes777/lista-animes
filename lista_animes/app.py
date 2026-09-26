@@ -26,7 +26,8 @@ def carregar_exemplos(banco: Banco) -> None:
     if banco.listar():
         return
     for dados in json.loads(ARQUIVO_EXEMPLOS.read_text(encoding="utf-8")):
-        banco.adicionar(AnimeNovo(**dados))
+        relacionados = dados.pop("relacionados", [])  # junta as temporadas da mesma franquia
+        banco.adicionar(AnimeNovo(**dados), relacionados)
 
 
 def criar_app(
