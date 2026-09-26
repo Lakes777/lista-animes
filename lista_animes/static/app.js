@@ -2,7 +2,7 @@
 // Todo texto vindo da API entra na página com textContent, que não interpreta HTML,
 // então um título como "<script>..." aparece como texto e não é executado.
 
-const estado = { status: "", busca: "", malIdsNaLista: new Set() };
+const estado = { status: "", busca: "", malIdsNaLista: new Set(), animeComentado: null };
 
 const $ = (seletor) => document.querySelector(seletor);
 
@@ -152,6 +152,10 @@ function criarCartaoAnime(anime) {
     editar(anime.id, mudancasPorEpisodios(anime, anime.episodios_vistos + 1)),
   );
 
+  const comentarios = cartao.querySelector('[data-acao="comentarios"]');
+  comentarios.textContent = anime.comentarios ? `Comentários (${anime.comentarios})` : "Comentar";
+  comentarios.addEventListener("click", () => abrirComentarios(anime));
+
   cartao.querySelector('[data-acao="remover"]').addEventListener("click", () => remover(anime));
   return cartao;
 }
@@ -201,6 +205,84 @@ async function remover(anime) {
     mostrarMensagem(erro.message, true);
   }
   await atualizarTudo();
+}
+
+// ---------- Comentários ----------
+
+function dataHora(texto) {
+  // A API guarda em UTC; o navegador mostra no fuso de quem está vendo.
+  return new Date(texto).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function criarComentario(comentario) {
+  const item = $("#molde-comentario").content.firstElementChild.cloneNode(true);
+  const info = [comentario.episodio && `Ep. ${comentario.episodio}`, dataHora(comentario.criado_em)];
+  item.querySelector(".comentario__info").textContent = info.filter(Boolean).join(" · ");
+  item.querySelector(".comentario__texto").textContent = comentario.texto;
+  item.querySelector("button").addEventListener("click", () => apagarComentario(comentario));
+  return item;
+}
+
+async function carregarComentarios() {
+  const anime = estado.animeComentado;
+  const comentarios = await api(`/animes/${anime.id}/comentarios`);
+  $("#lista-comentarios").replaceChildren(...comentarios.map(criarComentario));
+  mostrarAviso($("#aviso-comentarios"), comentarios.length ? "" : "Nenhum comentário ainda.");
+}
+
+async function abrirComentarios(anime) {
+  estado.animeComentado = anime;
+  $("#comentarios-titulo").textContent = anime.titulo;
+  $("#form-comentario").reset();
+  const episodio = $("#episodio-comentario");
+  if (anime.total_episodios !== null) episodio.max = anime.total_episodios;
+  else episodio.removeAttribute("max");
+  $("#lista-comentarios").replaceChildren();
+  mostrarAviso($("#aviso-comentarios"), "Carregando...");
+  $("#dialogo-comentarios").showModal();
+  try {
+    await carregarComentarios();
+  } catch (erro) {
+    mostrarAviso($("#aviso-comentarios"), erro.message);
+  }
+}
+
+async function enviarComentario(evento) {
+  evento.preventDefault();
+  const anime = estado.animeComentado;
+  const episodio = $("#episodio-comentario").value;
+  const botao = evento.submitter;
+  botao.disabled = true;
+  try {
+    await api(`/animes/${anime.id}/comentarios`, {
+      method: "POST",
+      body: JSON.stringify({
+        texto: $("#texto-comentario").value,
+        episodio: episodio ? Number(episodio) : null,
+      }),
+    });
+    $("#form-comentario").reset();
+    await Promise.all([carregarComentarios(), carregarLista()]); // a lista mostra a contagem nova
+  } catch (erro) {
+    mostrarMensagem(erro.message, true);
+  } finally {
+    botao.disabled = false;
+  }
+}
+
+async function apagarComentario(comentario) {
+  if (!confirm("Apagar este comentário?")) return;
+  try {
+    await api(`/animes/${comentario.anime_id}/comentarios/${comentario.id}`, { method: "DELETE" });
+    await Promise.all([carregarComentarios(), carregarLista()]);
+  } catch (erro) {
+    mostrarMensagem(erro.message, true);
+  }
+}
+
+function fecharAoClicarFora(evento) {
+  // O clique no fundo escuro (fora da caixa) cai no próprio <dialog>.
+  if (evento.target === evento.currentTarget) evento.currentTarget.close();
 }
 
 // ---------- Catálogo (Jikan) ----------
@@ -319,6 +401,11 @@ async function mostrarAvisoDemo() {
 $("#form-catalogo").addEventListener("submit", buscarNoCatalogo);
 $("#abas").addEventListener("click", escolherAba);
 $("#filtro-titulo").addEventListener("input", filtrarPorTitulo);
+$("#form-comentario").addEventListener("submit", enviarComentario);
+for (const dialogo of document.querySelectorAll("dialog")) {
+  dialogo.addEventListener("click", fecharAoClicarFora);
+  dialogo.querySelector("[data-fechar]").addEventListener("click", () => dialogo.close());
+}
 
 mostrarAvisoDemo().catch(() => {});
 atualizarTudo().catch(() =>

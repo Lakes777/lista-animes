@@ -1,19 +1,22 @@
 """Rotas da API.
 
-/animes: sua lista (criar, listar com filtros, ver, editar, apagar e estatísticas).
+/animes: sua lista (criar, listar com filtros, ver, editar, apagar e estatísticas)
+e os comentários de cada anime.
 /catalogo: busca no catálogo da Jikan (MyAnimeList).
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import ValidationError
 
-from lista_animes.banco import AnimeRepetido, Banco
+from lista_animes.banco import AnimeRepetido, Banco, EpisodioInvalido
 from lista_animes.catalogo import Catalogo, CatalogoIndisponivel
 from lista_animes.modelos import (
     Anime,
     AnimeAtualizacao,
     AnimeCatalogo,
     AnimeNovo,
+    Comentario,
+    ComentarioNovo,
     Estatisticas,
     Status,
 )
@@ -37,6 +40,10 @@ def pegar_catalogo(request: Request) -> Catalogo:
 def pegar_limite(request: Request) -> int | None:
     # Só existe na demonstração online (None = sem limite).
     return request.app.state.limite_animes
+
+
+def pegar_limite_comentarios(request: Request) -> int | None:
+    return request.app.state.limite_comentarios
 
 
 def conferir_limite(banco: Banco, limite: int | None) -> None:
@@ -162,6 +169,61 @@ def apagar(anime_id: int, banco: Banco = Depends(pegar_banco)) -> Response:
     """Tira um anime da lista."""
     if not banco.remover(anime_id):
         raise nao_encontrado(anime_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@roteador.get("/{anime_id}/comentarios", responses={404: {"description": "Anime não encontrado"}})
+def listar_comentarios(anime_id: int, banco: Banco = Depends(pegar_banco)) -> list[Comentario]:
+    """Comentários do anime, do mais novo para o mais antigo."""
+    comentarios = banco.listar_comentarios(anime_id)
+    if comentarios is None:
+        raise nao_encontrado(anime_id)
+    return comentarios
+
+
+@roteador.post(
+    "/{anime_id}/comentarios",
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        403: {"description": "Limite atingido"},
+        404: {"description": "Anime não encontrado"},
+    },
+)
+def comentar(
+    anime_id: int,
+    novo: ComentarioNovo,
+    banco: Banco = Depends(pegar_banco),
+    limite: int | None = Depends(pegar_limite_comentarios),
+) -> Comentario:
+    """Escreve um comentário no anime (se quiser, dizendo o episódio)."""
+    if limite is not None and banco.contar_comentarios() >= limite:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"A demonstração aceita até {limite} comentários. Apague algum para escrever outro.",
+        )
+    try:
+        comentario = banco.comentar(anime_id, novo)
+    except EpisodioInvalido as erro:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(erro)) from erro
+    if comentario is None:
+        raise nao_encontrado(anime_id)
+    return comentario
+
+
+@roteador.delete(
+    "/{anime_id}/comentarios/{comentario_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={404: {"description": "Comentário não encontrado"}},
+)
+def apagar_comentario(
+    anime_id: int, comentario_id: int, banco: Banco = Depends(pegar_banco)
+) -> Response:
+    """Apaga um comentário."""
+    if not banco.apagar_comentario(anime_id, comentario_id):
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            f"Comentário {comentario_id} não existe no anime {anime_id}",
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

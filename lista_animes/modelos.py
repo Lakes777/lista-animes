@@ -80,6 +80,27 @@ class Anime(AnimeNovo):
 
     id: int
     criado_em: datetime
+    comentarios: int = Field(default=0, description="Quantos comentários o anime tem")
+
+
+class ComentarioNovo(BaseModel):
+    """Uma anotação sua sobre o anime, se quiser ligada a um episódio."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        json_schema_extra={"examples": [{"texto": "A luta desse episódio foi incrível", "episodio": 7}]},
+    )
+
+    texto: str = Field(min_length=1, max_length=1000)
+    episodio: int | None = Field(default=None, ge=1, description="Episódio comentado (opcional)")
+
+
+class Comentario(ComentarioNovo):
+    """Um comentário já salvo."""
+
+    id: int
+    anime_id: int
+    criado_em: datetime
 
 
 class Estatisticas(BaseModel):

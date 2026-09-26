@@ -98,10 +98,44 @@
             <option value="">—</option>
           </select>
         </label>
-        <button class="botao botao--pequeno botao--perigo" type="button" data-acao="remover">Remover</button>
+        <div class="cartao__acoes">
+          <button class="botao botao--pequeno botao--fantasma" type="button" data-acao="comentarios"></button>
+          <button class="botao botao--pequeno botao--perigo" type="button" data-acao="remover">Remover</button>
+        </div>
       </div>
     </article>
   </template>
+
+  <template id="molde-comentario">
+    <li class="comentario">
+      <div class="comentario__topo">
+        <span class="comentario__info"></span>
+        <button class="botao botao--pequeno botao--perigo" type="button">Apagar</button>
+      </div>
+      <p class="comentario__texto"></p>
+    </li>
+  </template>
+
+  <!-- Janela de comentários de um anime (abre pelo botão do cartão) -->
+  <dialog class="dialogo" id="dialogo-comentarios" aria-labelledby="comentarios-titulo">
+    <div class="dialogo__topo">
+      <h2 class="dialogo__titulo" id="comentarios-titulo"></h2>
+      <button class="botao botao--pequeno botao--fantasma" type="button" data-fechar>Fechar</button>
+    </div>
+    <form class="comentar" id="form-comentario">
+      <textarea class="campo" id="texto-comentario" rows="3" maxlength="1000"
+                placeholder="Escreva um comentário..." aria-label="Comentário" required></textarea>
+      <div class="comentar__linha">
+        <label class="rotulo">Episódio (opcional)
+          <input class="campo campo--pequeno campo--numero" id="episodio-comentario"
+                 type="number" min="1" step="1" inputmode="numeric">
+        </label>
+        <button class="botao botao--pequeno" type="submit">Comentar</button>
+      </div>
+    </form>
+    <p class="aviso" id="aviso-comentarios" hidden></p>
+    <ul class="comentarios" id="lista-comentarios"></ul>
+  </dialog>
 
   <div class="mensagem" id="mensagem" role="status" hidden></div>
 </body>

@@ -12,9 +12,18 @@ from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
-from lista_animes.modelos import Anime, AnimeAtualizacao, AnimeNovo, Estatisticas, Status
+from lista_animes.modelos import (
+    Anime,
+    AnimeAtualizacao,
+    AnimeNovo,
+    Comentario,
+    ComentarioNovo,
+    Estatisticas,
+    Status,
+)
 
-CRIAR_TABELA = """
+CRIAR_TABELAS = [
+    """
 CREATE TABLE IF NOT EXISTS animes (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     titulo           TEXT    NOT NULL,
@@ -26,7 +35,26 @@ CREATE TABLE IF NOT EXISTS animes (
     nota             INTEGER,
     criado_em        TEXT    NOT NULL
 )
-"""
+""",
+    # ON DELETE CASCADE: quando um anime sai da lista, os comentários dele vão junto.
+    """
+CREATE TABLE IF NOT EXISTS comentarios (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    anime_id  INTEGER NOT NULL REFERENCES animes (id) ON DELETE CASCADE,
+    texto     TEXT    NOT NULL,
+    episodio  INTEGER,
+    criado_em TEXT    NOT NULL
+)
+""",
+    "CREATE INDEX IF NOT EXISTS comentarios_por_anime ON comentarios (anime_id)",
+]
+
+# Cada anime vem com a contagem de comentários, calculada na hora pelo SQLite.
+SELECIONAR_ANIMES = (
+    "SELECT animes.*, "
+    "(SELECT COUNT(*) FROM comentarios WHERE comentarios.anime_id = animes.id) AS comentarios "
+    "FROM animes"
+)
 
 
 # Migrações: ajustes nos dados salvos por versões antigas, rodados ao abrir o banco.
@@ -42,11 +70,16 @@ class AnimeRepetido(Exception):
     """O anime (mesmo mal_id) já está na lista."""
 
 
+class EpisodioInvalido(Exception):
+    """O comentário cita um episódio que o anime não tem."""
+
+
 class Banco:
     def __init__(self, caminho: Path | str) -> None:
         self.caminho = Path(caminho)
         with self._conectar() as conexao:
-            conexao.execute(CRIAR_TABELA)
+            for comando in CRIAR_TABELAS:
+                conexao.execute(comando)
             for migracao in MIGRACOES:
                 conexao.execute(migracao)
 
@@ -54,6 +87,9 @@ class Banco:
     def _conectar(self) -> Iterator[sqlite3.Connection]:
         with closing(sqlite3.connect(self.caminho)) as conexao:
             conexao.row_factory = sqlite3.Row  # linhas acessíveis por nome: linha["titulo"]
+            # O SQLite só respeita o REFERENCES (e o ON DELETE CASCADE) com isto ligado,
+            # e precisa ser ligado em cada conexão.
+            conexao.execute("PRAGMA foreign_keys = ON")
             with conexao:  # confirma (commit) no final, ou desfaz tudo se der erro
                 yield conexao
 
@@ -86,7 +122,9 @@ class Banco:
             valores.append(f"%{termo}%")
         where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
         with self._conectar() as conexao:
-            linhas = conexao.execute(f"SELECT * FROM animes {where} ORDER BY id", valores).fetchall()
+            linhas = conexao.execute(
+                f"{SELECIONAR_ANIMES} {where} ORDER BY id", valores
+            ).fetchall()
         return [Anime(**linha) for linha in linhas]
 
     def estatisticas(self) -> Estatisticas:
@@ -113,7 +151,9 @@ class Banco:
 
     def buscar(self, anime_id: int) -> Anime | None:
         with self._conectar() as conexao:
-            linha = conexao.execute("SELECT * FROM animes WHERE id = ?", (anime_id,)).fetchone()
+            linha = conexao.execute(
+                f"{SELECIONAR_ANIMES} WHERE id = ?", (anime_id,)
+            ).fetchone()
         return Anime(**linha) if linha else None
 
     def atualizar(self, anime_id: int, mudancas: AnimeAtualizacao) -> Anime | None:
@@ -137,3 +177,48 @@ class Banco:
         with self._conectar() as conexao:
             cursor = conexao.execute("DELETE FROM animes WHERE id = ?", (anime_id,))
         return cursor.rowcount > 0
+
+    def listar_comentarios(self, anime_id: int) -> list[Comentario] | None:
+        """Comentários do anime, do mais novo para o mais antigo. None se o anime não existe."""
+        with self._conectar() as conexao:
+            if conexao.execute("SELECT 1 FROM animes WHERE id = ?", (anime_id,)).fetchone() is None:
+                return None
+            linhas = conexao.execute(
+                "SELECT * FROM comentarios WHERE anime_id = ? ORDER BY id DESC", (anime_id,)
+            ).fetchall()
+        return [Comentario(**linha) for linha in linhas]
+
+    def comentar(self, anime_id: int, novo: ComentarioNovo) -> Comentario | None:
+        """Salva um comentário no anime. None se o anime não existe."""
+        with self._conectar() as conexao:
+            anime = conexao.execute(
+                "SELECT total_episodios FROM animes WHERE id = ?", (anime_id,)
+            ).fetchone()
+            if anime is None:
+                return None
+            total = anime["total_episodios"]
+            if novo.episodio is not None and total is not None and novo.episodio > total:
+                raise EpisodioInvalido(f"Esse anime tem só {total} episódios")
+            dados = {
+                **novo.model_dump(),
+                "anime_id": anime_id,
+                "criado_em": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            }
+            cursor = conexao.execute(
+                "INSERT INTO comentarios (anime_id, texto, episodio, criado_em) "
+                "VALUES (:anime_id, :texto, :episodio, :criado_em)",
+                dados,
+            )
+        return Comentario(id=cursor.lastrowid, **dados)
+
+    def apagar_comentario(self, anime_id: int, comentario_id: int) -> bool:
+        with self._conectar() as conexao:
+            # Confere o anime também: não dá para apagar o comentário de outro anime pelo link errado.
+            cursor = conexao.execute(
+                "DELETE FROM comentarios WHERE id = ? AND anime_id = ?", (comentario_id, anime_id)
+            )
+        return cursor.rowcount > 0
+
+    def contar_comentarios(self) -> int:
+        with self._conectar() as conexao:
+            return conexao.execute("SELECT COUNT(*) FROM comentarios").fetchone()[0]
