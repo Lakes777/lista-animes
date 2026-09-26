@@ -158,7 +158,7 @@ async function atualizarTudo() {
 async function editar(id, mudancas) {
   try {
     await api(`/animes/${id}`, { method: "PATCH", body: JSON.stringify(mudancas) });
-    if (mudancas.status === "concluido") mostrarMensagem("🎉 Anime concluído!");
+    if (mudancas.status === "concluido") mostrarMensagem("Anime concluído!");
   } catch (erro) {
     mostrarMensagem(erro.message, true);
   }
@@ -188,7 +188,7 @@ function criarCartaoCatalogo(anime) {
     anime.tipo,
     anime.ano,
     anime.total_episodios && `${anime.total_episodios} eps.`,
-    anime.nota_mal && `⭐ ${anime.nota_mal}`,
+    anime.nota_mal && `nota ${anime.nota_mal} no MAL`,
   ].filter(Boolean);
   cartao.querySelector(".cartao__info").textContent = info.join(" · ");
   cartao.querySelector(".cartao__generos").textContent = anime.generos.slice(0, 3).join(", ");
@@ -250,7 +250,7 @@ async function buscarNoCatalogo(evento) {
     mostrarAviso(aviso, animes.length ? "" : `Nenhum anime encontrado para "${termo}".`);
   } catch (erro) {
     $("#resultados-catalogo").replaceChildren();
-    let texto = `⚠️ ${erro.message}`;
+    let texto = erro.message;
     if (extrairMalId(termo) === null && erro.message.includes("fora do ar")) {
       texto += " Dica: cole o link do anime no MyAnimeList (ex.: myanimelist.net/anime/52991)."
         + " A busca por ID costuma funcionar mesmo assim.";
@@ -295,5 +295,5 @@ $("#filtro-titulo").addEventListener("input", filtrarPorTitulo);
 
 mostrarAvisoDemo().catch(() => {});
 atualizarTudo().catch(() =>
-  mostrarAviso($("#aviso-lista"), "⚠️ Não consegui falar com a API. Ela está rodando?"),
+  mostrarAviso($("#aviso-lista"), "Não consegui falar com a API. Ela está rodando?"),
 );
