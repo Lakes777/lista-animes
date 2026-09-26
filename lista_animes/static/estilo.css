@@ -307,6 +307,23 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.episodios__texto {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.episodios__total {
+  white-space: nowrap;
+}
+
+.campo--numero {
+  width: 5.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .progresso {
   height: 6px;
   border-radius: 999px;
@@ -373,5 +390,9 @@ body {
 
   .episodios .botao {
     width: 100%;
+  }
+
+  .episodios .campo--numero {
+    width: 4.5em;
   }
 }

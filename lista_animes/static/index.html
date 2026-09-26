@@ -85,7 +85,11 @@
           </select>
         </label>
         <div class="episodios">
-          <span class="episodios__texto"></span>
+          <label class="episodios__texto">
+            <input class="campo campo--pequeno campo--numero" type="number" min="0" step="1"
+                   inputmode="numeric" data-campo="vistos" aria-label="Episódios vistos">
+            <span class="episodios__total"></span>
+          </label>
           <button class="botao botao--pequeno botao--fantasma" type="button" data-acao="mais1">+1 ep.</button>
         </div>
         <div class="progresso"><div class="progresso__barra"></div></div>

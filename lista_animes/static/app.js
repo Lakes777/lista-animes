@@ -74,10 +74,40 @@ async function carregarEstatisticas() {
 
 // ---------- Minha lista ----------
 
-function textoEpisodios(anime) {
-  const numero = (n) => n.toLocaleString("pt-BR"); // 1087 vira "1.087"
-  const total = anime.total_episodios === null ? "?" : numero(anime.total_episodios);
-  return `${numero(anime.episodios_vistos)} / ${total} episódios`;
+function textoTotal(anime) {
+  // 1087 vira "1.087"
+  const total = anime.total_episodios === null ? "?" : anime.total_episodios.toLocaleString("pt-BR");
+  return `/ ${total} eps.`;
+}
+
+// O status acompanha os episódios: começou a ver vira "assistindo",
+// chegou ao último vira "concluído" e voltou atrás num concluído vira "assistindo" de novo.
+function mudancasPorEpisodios(anime, vistos) {
+  const mudancas = { episodios_vistos: vistos };
+  const total = anime.total_episodios;
+  if (vistos > 0 && anime.status === "quero_ver") mudancas.status = "assistindo";
+  if (total !== null && vistos === total) mudancas.status = "concluido";
+  if (total !== null && vistos < total && anime.status === "concluido") mudancas.status = "assistindo";
+  return mudancas;
+}
+
+function escolherEpisodio(anime, campo) {
+  // Espera a pessoa parar de digitar ou de clicar nas setinhas antes de salvar.
+  // Cada campo tem o próprio temporizador, para um cartão não cancelar o outro.
+  clearTimeout(campo.temporizador);
+  campo.temporizador = setTimeout(() => {
+    if (campo.value === "") return; // apagou para digitar outro número
+    const vistos = Number(campo.value);
+    const total = anime.total_episodios;
+    if (!Number.isInteger(vistos) || vistos < 0 || (total !== null && vistos > total)) {
+      mostrarMensagem(total === null
+        ? "Digite um número inteiro de episódios."
+        : `Digite um número de 0 a ${total}.`, true);
+      campo.value = anime.episodios_vistos;
+      return;
+    }
+    if (vistos !== anime.episodios_vistos) editar(anime.id, mudancasPorEpisodios(anime, vistos));
+  }, 700);
 }
 
 function preencherCapa(img, anime) {
@@ -93,7 +123,11 @@ function criarCartaoAnime(anime) {
   const cartao = $("#molde-anime").content.firstElementChild.cloneNode(true);
   preencherCapa(cartao.querySelector(".cartao__capa"), anime);
   cartao.querySelector(".cartao__titulo").textContent = anime.titulo;
-  cartao.querySelector(".episodios__texto").textContent = textoEpisodios(anime);
+  const vistos = cartao.querySelector('[data-campo="vistos"]');
+  vistos.value = anime.episodios_vistos;
+  if (anime.total_episodios !== null) vistos.max = anime.total_episodios;
+  vistos.addEventListener("input", () => escolherEpisodio(anime, vistos));
+  cartao.querySelector(".episodios__total").textContent = textoTotal(anime);
 
   const porcentagem = anime.total_episodios
     ? (100 * anime.episodios_vistos) / anime.total_episodios
@@ -114,16 +148,9 @@ function criarCartaoAnime(anime) {
   const mais1 = cartao.querySelector('[data-acao="mais1"]');
   const acabou = anime.total_episodios !== null && anime.episodios_vistos >= anime.total_episodios;
   mais1.disabled = acabou;
-  mais1.addEventListener("click", () => {
-    const vistos = anime.episodios_vistos + 1;
-    const mudancas = { episodios_vistos: vistos };
-    // Começou a ver? Vira "assistindo". Chegou ao último episódio? Vira "concluído".
-    if (anime.status === "quero_ver") mudancas.status = "assistindo";
-    if (anime.total_episodios !== null && vistos === anime.total_episodios) {
-      mudancas.status = "concluido";
-    }
-    editar(anime.id, mudancas);
-  });
+  mais1.addEventListener("click", () =>
+    editar(anime.id, mudancasPorEpisodios(anime, anime.episodios_vistos + 1)),
+  );
 
   cartao.querySelector('[data-acao="remover"]').addEventListener("click", () => remover(anime));
   return cartao;
