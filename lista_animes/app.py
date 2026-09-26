@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -51,6 +51,16 @@ def criar_app(
 
     # O front (HTML, CSS e JS) é servido pela própria API: um só servidor para tudo.
     app.mount("/static", StaticFiles(directory=PASTA_STATIC), name="static")
+
+    @app.middleware("http")
+    async def conferir_versao_do_front(request: Request, call_next) -> Response:
+        # Sem isto, o navegador podia passar horas usando o app.js antigo depois de uma
+        # versão nova ir ao ar. "no-cache" não impede de guardar: obriga a perguntar
+        # antes de usar, e se nada mudou o servidor responde só "304, pode usar".
+        resposta = await call_next(request)
+        if request.url.path == "/" or request.url.path.startswith("/static/"):
+            resposta.headers["Cache-Control"] = "no-cache"
+        return resposta
 
     @app.get("/", include_in_schema=False)
     def inicio() -> FileResponse:

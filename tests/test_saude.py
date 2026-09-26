@@ -31,3 +31,18 @@ def test_front_nunca_usa_innerhtml(cliente):
     # Textos da API (títulos, sinopses) entram com textContent, que não executa HTML.
     # Isso evita XSS: um anime chamado "<script>..." não roda código na página.
     assert "innerHTML" not in cliente.get("/static/app.js").text
+
+
+def test_front_manda_o_navegador_conferir_se_ha_versao_nova(cliente):
+    for caminho in ("/", "/static/app.js", "/static/estilo.css"):
+        assert cliente.get(caminho).headers["cache-control"] == "no-cache", caminho
+
+
+def test_arquivo_sem_mudanca_responde_304(cliente):
+    etag = cliente.get("/static/app.js").headers["etag"]
+
+    assert cliente.get("/static/app.js", headers={"If-None-Match": etag}).status_code == 304
+
+
+def test_respostas_da_api_nao_ganham_o_cabecalho_do_front(cliente):
+    assert "cache-control" not in cliente.get("/animes").headers
